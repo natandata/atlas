@@ -1,0 +1,970 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Central de Bots</title>
+<link rel="manifest" href="/manifest.webmanifest">
+<meta name="theme-color" content="#131313" id="themeColor">
+<meta name="color-scheme" content="light dark">
+<link rel="icon" type="image/png" href="/icon-192.png">
+<link rel="apple-touch-icon" href="/icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Bots">
+<style>
+:root{
+  --side:#f5f5f6; --main:#fcfcfc; --panel:#fcfcfc; --line:#e7e7ea; --text:#111113; --muted:#85858c; --sel:#e4e4e7; --hover:#ececef;
+  --bub:#efeff1; --me-bg:#0b0b0c; --me-fg:#fff; --card:#fff; --field:#fff; --screen:#f0f0f2; --accent:#2f7df6; --ok:#2db36a; --err:#e5484d; --warn:#c98100;
+  --shadow:0 14px 44px rgba(0,0,0,.16); --side-w:310px; --panel-w:330px; color-scheme:light;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --side:#121212; --main:#1b1b1c; --panel:#161617; --line:#2a2a2c; --text:#f3f3f4; --muted:#8e8e95; --sel:#262628; --hover:#202022;
+    --bub:#2b2b2d; --me-bg:#ececee; --me-fg:#101012; --card:#222224; --field:#1b1b1c; --screen:#0e0e0f; --accent:#4f8cff; --ok:#3ecf8e; --err:#ff7b72; --warn:#f5b84b;
+    --shadow:0 14px 44px rgba(0,0,0,.55); color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --side:#121212; --main:#1b1b1c; --panel:#161617; --line:#2a2a2c; --text:#f3f3f4; --muted:#8e8e95; --sel:#262628; --hover:#202022;
+  --bub:#2b2b2d; --me-bg:#ececee; --me-fg:#101012; --card:#222224; --field:#1b1b1c; --screen:#0e0e0f; --accent:#4f8cff; --ok:#3ecf8e; --err:#ff7b72; --warn:#f5b84b;
+  --shadow:0 14px 44px rgba(0,0,0,.55); color-scheme:dark;
+}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0;background:var(--main)}
+body{font:15px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:var(--text);-webkit-text-size-adjust:100%;overflow:hidden}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer;background:none;border:0;padding:0}
+::-webkit-scrollbar{width:10px;height:10px}::-webkit-scrollbar-thumb{background:var(--line);border-radius:8px;border:2px solid transparent;background-clip:content-box}
+svg{display:block}
+#app{display:grid;grid-template-columns:var(--side-w) minmax(0,1fr) var(--panel-w);height:100dvh}
+#app.nopanel{grid-template-columns:var(--side-w) minmax(0,1fr)}
+#app.nopanel #panel{display:none}
+
+/* ---- avatares (formas + cor) ---- */
+.bav{display:inline-block;flex:none;position:relative}
+.bav svg{width:100%;height:100%}
+.bav text{font-weight:700;fill:#fff;font-family:inherit}
+.stack{position:relative;flex:none;display:block}
+.stack .bav{position:absolute;border-radius:50%;box-shadow:0 0 0 2px var(--side)}
+.online{position:absolute;right:0;bottom:1px;width:12px;height:12px;border-radius:50%;background:var(--ok);border:2px solid var(--side);display:none}
+.busy .online{display:block;animation:pulse 1.2s ease-in-out infinite}
+@keyframes pulse{50%{transform:scale(1.3);opacity:.65}}
+
+/* ---- lateral: conversas ---- */
+#side{background:var(--side);border-right:1px solid var(--line);display:flex;flex-direction:column;min-height:0}
+.s-top{display:flex;gap:8px;align-items:center;padding:14px 14px 8px}
+.search{flex:1;display:flex;align-items:center;gap:8px;background:var(--field);border:1px solid var(--line);border-radius:12px;padding:0 10px;height:38px;color:var(--muted)}
+.search input{border:0;outline:0;background:transparent;width:100%;min-width:0;height:100%}
+.iconbtn{width:38px;height:38px;border-radius:12px;display:grid;place-items:center;color:var(--muted);flex:none}
+.iconbtn:hover{background:var(--hover);color:var(--text)}
+.favs{display:none}
+#list{flex:1;min-height:0;overflow-y:auto;padding:4px 8px}
+.item{display:flex;gap:12px;align-items:center;padding:10px 10px;border-radius:14px;cursor:pointer}
+.item:hover{background:var(--hover)}
+.item.sel{background:var(--sel)}
+.avwrap{position:relative;flex:none}
+.item .meta{min-width:0;flex:1}
+.row1,.row2{display:flex;align-items:center;gap:8px;min-width:0}
+.nm{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1}
+.tm{font-size:12px;color:var(--muted);flex:none}
+.pv{color:var(--muted);font-size:13.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1}
+.pv.typing{color:var(--ok)}
+.ud{width:9px;height:9px;border-radius:50%;background:var(--accent);flex:none}
+.emptylist{color:var(--muted);text-align:center;padding:24px}
+.s-bot{padding:10px 12px calc(12px + env(safe-area-inset-bottom));border-top:1px solid var(--line)}
+.me-row{display:flex;align-items:center;gap:10px;width:100%;padding:8px;border-radius:12px;text-align:left}
+.me-row:hover{background:var(--hover)}
+.me-av{width:32px;height:32px;border-radius:50%;background:var(--sel);display:grid;place-items:center;font-size:12px;font-weight:700;flex:none}
+.me-row.paused .me-av{box-shadow:0 0 0 2px var(--warn)}
+.me-name{font-weight:600;flex:1}
+.me-use{font-size:12px;color:var(--muted)}
+
+/* ---- chat ---- */
+#main{display:flex;flex-direction:column;min-width:0;min-height:0;background:var(--main);position:relative}
+.empty{margin:auto;color:var(--muted);text-align:center;padding:24px}
+#chat{display:none;flex-direction:column;min-height:0;flex:1}
+#chat.on{display:flex}
+#pausedBar{display:none;background:rgba(245,184,75,.16);color:var(--warn);font-size:13px;text-align:center;padding:6px 10px}
+#pausedBar.on{display:block}
+.head{display:flex;align-items:center;gap:10px;padding:12px 16px;border-bottom:1px solid var(--line);min-height:58px}
+.back{display:none}
+.head .ttl{font-weight:650;font-size:16px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.head .sp{flex:1;min-width:0}
+.head .sub{color:var(--muted);font-size:12.5px;margin-left:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.head .sub.typing{color:var(--ok)}
+.tag{font-size:10px;font-weight:600;padding:1px 6px;border-radius:99px;background:var(--sel);color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-left:6px;vertical-align:2px}
+.livedot{position:absolute;top:7px;right:7px;width:8px;height:8px;border-radius:50%;background:var(--ok);display:none}
+.iconbtn.busy .livedot{display:block;animation:pulse 1.2s infinite}
+.iconbtn{position:relative}
+#msgs{flex:1;overflow-y:auto;min-height:0;padding:18px 18px 8px}
+#msgcol{max-width:820px;margin:0 auto;display:flex;flex-direction:column;gap:10px}
+.dv{align-self:center;color:var(--muted);font-size:12.5px;margin:8px 0 2px}
+.msg{max-width:84%;padding:10px 15px;border-radius:20px;background:var(--bub);align-self:flex-start;overflow-wrap:anywhere}
+.msg.cont{margin-top:-6px}
+.msg.me{align-self:flex-end;background:var(--me-bg);color:var(--me-fg);border-bottom-right-radius:8px}
+.msg .who{font-size:12px;font-weight:700;margin-bottom:2px}
+.msg .t{white-space:pre-wrap}
+.msg .ts{font-size:11px;opacity:.55;margin-top:3px}
+.media{display:flex;flex-direction:column;gap:6px;margin-bottom:4px}
+.media img,.media video{max-width:min(100%,360px);max-height:360px;border-radius:14px;display:block;background:#000}
+.media audio{max-width:100%}
+.fl{display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:12px;background:rgba(127,127,127,.15);color:inherit;text-decoration:none;font-size:13.5px}
+.fl small{opacity:.65}
+.dlk{font-size:12px;opacity:.7;color:inherit}
+#chips{max-width:820px;margin:0 auto 6px;display:flex;flex-wrap:wrap;gap:6px}
+#chips:empty{display:none}
+.chip{display:flex;align-items:center;gap:6px;max-width:260px;padding:5px 6px 5px 10px;border-radius:999px;background:var(--card);border:1px solid var(--line);font-size:12.5px}
+.chip span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.chip.err{border-color:var(--err);color:var(--err)}
+.chip button{border:0;background:transparent;color:inherit;cursor:pointer;font-size:16px;line-height:1;padding:0 4px}
+.chip i{display:block;height:3px;border-radius:2px;background:var(--accent);width:0;min-width:0}
+.dropzone{outline:2px dashed var(--accent);outline-offset:-6px}
+.skl{display:flex;flex-direction:column;gap:6px}
+.sk{display:flex;align-items:center;gap:8px;padding:8px 10px;border:1px solid var(--line);border-radius:12px;font-size:13.5px}
+.sk b{flex:0 0 auto}.sk span{flex:1;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sk button{border:0;background:transparent;color:var(--err);cursor:pointer;font-size:13px}
+.msg.delegation{box-shadow:inset 3px 0 0 var(--accent)}
+.msg.error,.msg.sys{align-self:center;background:transparent;font-size:12.5px;max-width:92%;text-align:center;padding:2px 8px}
+.msg.error{color:var(--err)}.msg.sys{color:var(--muted)}
+#typing{min-height:26px;padding:0 18px 4px;color:var(--muted);font-size:12.5px}
+#typcol{max-width:820px;margin:0 auto;display:flex;gap:8px;align-items:center}
+.dots{display:inline-flex;gap:3px}.dots i{width:5px;height:5px;border-radius:50%;background:var(--muted);animation:bl 1.2s infinite}
+.dots i:nth-child(2){animation-delay:.15s}.dots i:nth-child(3){animation-delay:.3s}
+@keyframes bl{0%,60%,100%{opacity:.3}30%{opacity:1}}
+.composer{padding:6px 18px calc(16px + env(safe-area-inset-bottom))}
+.cbox{max-width:820px;margin:0 auto;background:var(--card);border:1px solid var(--line);border-radius:28px;padding:8px 8px 8px 8px;display:flex;align-items:flex-end;gap:8px;box-shadow:0 2px 10px rgba(0,0,0,.06)}
+.cbox:focus-within{border-color:var(--muted)}
+.cbox textarea{flex:1;resize:none;border:0;background:transparent;outline:0;max-height:160px;min-height:26px;line-height:1.45;padding:6px 4px}
+.cplus{width:36px;height:36px;border-radius:50%;background:var(--hover);display:grid;place-items:center;color:var(--muted);flex:none}
+.cplus:hover{color:var(--text)}
+.send{width:36px;height:36px;border-radius:50%;background:var(--me-bg);color:var(--me-fg);display:grid;place-items:center;flex:none}
+
+/* ---- painel direito ---- */
+#panel{background:var(--panel);border-left:1px solid var(--line);display:flex;flex-direction:column;min-height:0;overflow-y:auto}
+.p-head{display:flex;align-items:center;justify-content:space-between;padding:12px 14px 6px}
+.p-head h3{margin:0;font-size:14px;font-weight:650}
+.screen{margin:6px 16px 0;background:var(--screen);border:1px solid var(--line);border-radius:14px;overflow:hidden}
+.sbar{display:flex;align-items:center;gap:6px;padding:8px 10px;border-bottom:1px solid var(--line)}
+.sbar i{width:9px;height:9px;border-radius:50%;background:var(--line)}
+.sbar span{margin-left:auto;font-size:11.5px;color:var(--muted);display:flex;align-items:center;gap:6px}
+.sbar b{width:7px;height:7px;border-radius:50%;background:var(--muted);opacity:.5;display:inline-block}
+.sbar.on b{background:var(--ok);opacity:1;animation:pulse 1.2s infinite}
+.sbar em{font-style:normal}
+.feed{height:290px;overflow-y:auto;padding:10px 12px;display:flex;flex-direction:column;gap:9px;font-size:12.5px}
+.feed .none{margin:auto;color:var(--muted);text-align:center;padding:0 12px}
+.ln{display:grid;grid-template-columns:auto 14px 1fr;gap:7px;align-items:start}
+.ln .at{font:11px ui-monospace,Menlo,Consolas,monospace;color:var(--muted);padding-top:2px}
+.ln .ic{color:var(--muted);text-align:center}
+.ln.k-tool .ic{color:var(--accent)}.ln.k-done .ic{color:var(--ok)}.ln.k-error .ic{color:var(--err)}.ln.k-delegate .ic{color:var(--warn)}
+.ln .tx{min-width:0;overflow-wrap:anywhere}
+.ln .tx small{display:block;color:var(--muted);font-size:11.5px;margin-top:1px}
+.cap{color:var(--muted);font-size:12.5px;text-align:center;padding:10px 16px 2px}
+.sec{display:flex;align-items:center;justify-content:space-between;padding:18px 18px 6px}
+.sec h3{margin:0;font-size:13px;font-weight:600;color:var(--muted)}
+.plus{width:28px;height:28px;border-radius:8px;color:var(--muted);display:grid;place-items:center}
+.plus:hover{color:var(--text);background:var(--hover)}
+.rts{padding:0 10px 10px;display:flex;flex-direction:column;gap:2px}
+.rt{display:flex;align-items:center;gap:10px;padding:8px 8px;border-radius:12px}
+.rt:hover{background:var(--hover)}
+.rt .st{width:22px;height:22px;display:grid;place-items:center;color:var(--ok);flex:none}
+.rt.off .st{color:var(--muted)}
+.rt .m{min-width:0;flex:1}
+.rt .n{font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rt .s{font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ib{width:28px;height:28px;border-radius:8px;color:var(--muted);display:grid;place-items:center;font-size:13px}
+.ib:hover{color:var(--text);background:var(--sel)}
+.rts .none{color:var(--muted);font-size:13px;padding:6px 8px}
+.usage{margin-top:auto;padding:12px 18px 16px;color:var(--muted);font-size:12px}
+.bar{height:4px;border-radius:4px;background:var(--line);margin-top:6px;overflow:hidden}.bar>i{display:block;height:100%;background:var(--accent)}
+.bar.warn>i{background:var(--warn)}
+
+/* ---- menu e diálogos ---- */
+.menu{position:fixed;z-index:50;min-width:220px;background:var(--card);border:1px solid var(--line);border-radius:16px;padding:6px;box-shadow:var(--shadow)}
+.menu[hidden]{display:none}
+.mi{display:flex;align-items:center;gap:10px;width:100%;text-align:left;padding:9px 12px;border-radius:10px;font-size:14px}
+.mi:hover{background:var(--hover)}.mi.danger{color:var(--err)}
+.menu .info{padding:8px 12px;color:var(--muted);font-size:12.5px}
+.menu .sep{height:1px;background:var(--line);margin:4px 2px}
+.btn{border:1px solid var(--line);background:var(--card);border-radius:12px;padding:8px 16px;min-height:40px}
+.btn:hover{background:var(--hover)}
+.btn.primary{background:var(--me-bg);border-color:var(--me-bg);color:var(--me-fg);font-weight:600}
+.btn.danger{color:var(--err)}
+input[type=text],input[type=time],input[type=number],select,textarea.fld{width:100%;border:1px solid var(--line);background:var(--field);border-radius:12px;padding:10px 12px;outline:0}
+input[type=text]:focus,input[type=time]:focus,input[type=number]:focus,select:focus,textarea.fld:focus{border-color:var(--muted)}
+dialog{border:1px solid var(--line);border-radius:22px;background:var(--main);color:var(--text);padding:0;width:min(580px,94vw);max-height:92dvh;box-shadow:var(--shadow)}
+dialog::backdrop{background:rgba(0,0,0,.5)}
+dialog form{display:flex;flex-direction:column;gap:12px;padding:20px;max-height:92dvh;overflow:auto}
+dialog h2{margin:0;font-size:18px}
+label.f{display:flex;flex-direction:column;gap:5px;font-size:13px;color:var(--muted)}
+.checks{display:flex;flex-wrap:wrap;gap:8px 14px;color:var(--text);font-size:14px}
+.checks label{display:flex;align-items:center;gap:6px}
+.days label{border:1px solid var(--line);border-radius:99px;padding:4px 11px;font-size:13px;cursor:pointer}
+.days label:has(input:checked){background:var(--me-bg);color:var(--me-fg);border-color:var(--me-bg)}
+.days input{display:none}
+.hint{font-size:12.5px;color:var(--muted)}
+.actions{display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap}
+#botForm{padding-top:0}
+.tabs{display:flex;gap:4px;overflow-x:auto;border-bottom:1px solid var(--line);position:sticky;top:0;z-index:3;background:var(--main);margin:0 -20px 0;padding:14px 16px 0;flex:0 0 auto}
+.tab{border:0;background:transparent;color:var(--muted);padding:10px 12px;font-size:14px;cursor:pointer;border-bottom:2px solid transparent;white-space:nowrap}
+.tab.on{color:var(--text);border-bottom-color:var(--accent);font-weight:600}
+.tp{display:flex;flex-direction:column;gap:12px}.tp[hidden]{display:none}
+.appr{display:flex;gap:8px;margin-top:8px}
+.pick{display:flex;flex-direction:column;align-items:center;gap:14px;padding:6px 0 2px}
+.bigav{width:96px;height:96px}
+.colors,.shapes{display:flex;gap:10px;flex-wrap:wrap;justify-content:center}
+.dot{width:28px;height:28px;border-radius:50%;border:0;position:relative}
+.dot.on{box-shadow:0 0 0 3px var(--main),0 0 0 5px var(--text)}
+.shp{width:44px;height:44px;border-radius:12px;display:grid;place-items:center}
+.shp .bav{width:30px;height:30px}
+.shp.on{box-shadow:0 0 0 2px var(--text)}
+.sugg{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.sg{display:flex;gap:10px;align-items:center;text-align:left;border:1px solid var(--line);border-radius:16px;padding:10px;background:var(--card)}
+.sg:hover{background:var(--hover)}
+.sg b{display:block;font-size:14px}
+.sg span.d{display:block;font-size:12px;color:var(--muted);line-height:1.3}
+.sg .bav{width:36px;height:36px}
+
+/* ---- celular e telas estreitas ---- */
+@media (max-width:900px){
+  #app,#app.nopanel{grid-template-columns:minmax(0,1fr)}
+  #main{display:none}
+  #app.inchat #side{display:none}
+  #app.inchat #main{display:flex}
+  #side{border-right:0}
+  .s-top{padding-top:max(14px,env(safe-area-inset-top))}
+  .favs{display:flex;gap:14px;overflow-x:auto;padding:8px 16px 12px;scrollbar-width:none}
+  .favs::-webkit-scrollbar{display:none}
+  .fav{display:flex;flex-direction:column;align-items:center;gap:6px;flex:none;width:72px;font-size:12px}
+  .fav .bav{width:64px;height:64px}
+  .fav span.n{max-width:72px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .back{display:grid}
+  .head{padding:10px 10px;padding-top:max(10px,env(safe-area-inset-top))}
+  #msgs{padding:14px 12px 6px}.msg{max-width:90%}
+  .composer{padding:4px 10px calc(10px + env(safe-area-inset-bottom))}
+  #panel,#app.nopanel #panel{position:fixed;left:0;right:0;bottom:0;top:72px;z-index:40;border:1px solid var(--line);border-radius:20px 20px 0 0;transform:translateY(105%);transition:transform .25s;display:flex;box-shadow:var(--shadow)}
+  #app.psheet #panel{transform:none}
+  .feed{height:250px}
+  .sugg{grid-template-columns:1fr}
+}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+<div id="app">
+  <aside id="side">
+    <div class="s-top">
+      <label class="search"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg><input type="search" id="q" placeholder="Buscar" aria-label="Buscar"></label>
+      <button class="iconbtn" id="plusBtn" data-menu title="Novo bot, grupo ou rotina" aria-label="Novo"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></button>
+    </div>
+    <div class="favs" id="favs"></div>
+    <div id="list"></div>
+    <div class="s-bot"><button class="me-row" id="meBtn" data-menu><span class="me-av">N</span><span class="me-name">Natan</span><span class="me-use" id="meUse"></span></button></div>
+  </aside>
+
+  <main id="main">
+    <div id="pausedBar">Central pausada: nenhuma chamada ao Claude será feita.</div>
+    <div class="empty" id="empty">Escolha uma conversa na lateral.<br>Crie bots com “+”.</div>
+    <section id="chat">
+      <div class="head">
+        <button class="iconbtn back" id="back" aria-label="Voltar"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg></button>
+        <span id="havwrap"></span>
+        <div class="ttl" id="htitle"></div>
+        <div class="sub" id="hsub"></div>
+        <div class="sp"></div>
+        <button class="iconbtn" id="panelBtn" title="Tela e rotinas" aria-label="Tela e rotinas"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/></svg><span class="livedot"></span></button>
+        <button class="iconbtn" id="moreBtn" data-menu title="Mais" aria-label="Mais opções"><svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/></svg></button>
+      </div>
+      <div id="msgs"><div id="msgcol"></div></div>
+      <div id="typing"><div id="typcol"></div></div>
+      <div class="composer">
+        <input type="file" id="fileIn" multiple hidden accept="image/*,video/*,audio/*,.pdf,.txt,.srt,.vtt,.csv,.json,.docx,.xlsx,.pptx">
+        <div id="chips"></div>
+        <div class="cbox">
+          <button class="cplus" id="clip" title="Anexar imagem, vídeo ou arquivo" aria-label="Anexar"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.5l-8.5 8.5a5.5 5.5 0 01-7.8-7.8l9-9a3.7 3.7 0 015.2 5.2l-9 9a1.8 1.8 0 01-2.6-2.6l8.3-8.3"/></svg></button>
+          <button class="cplus" id="cplus" data-menu title="Menções e rotinas" aria-label="Mais"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></button>
+          <textarea id="in" rows="1" placeholder="Mensagem" aria-label="Mensagem"></textarea>
+          <button class="send" id="sendBtn" aria-label="Enviar"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg></button>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <aside id="panel">
+    <div class="p-head"><h3 id="ptitle">Tela</h3><button class="iconbtn" id="pclose" aria-label="Fechar" style="width:32px;height:32px"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
+    <div class="screen">
+      <div class="sbar" id="sbar"><i></i><i></i><i></i><span><b></b><em id="sstate">ocioso</em></span></div>
+      <div class="feed" id="feed"></div>
+    </div>
+    <div class="cap" id="pcap"></div>
+    <div class="sec"><h3>Rotinas</h3><button class="plus" id="addRt" title="Nova rotina" aria-label="Nova rotina"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></button></div>
+    <div class="rts" id="rts"></div>
+    <div class="usage"><div id="utext"></div><div class="bar" id="ubar"><i></i></div></div>
+  </aside>
+</div>
+<div id="menu" class="menu" hidden></div>
+<input type="file" id="impFile" accept=".json,application/json" hidden>
+
+<dialog id="botDlg"><form method="dialog" id="botForm">
+  <div class="tabs" id="bTabs">
+    <button type="button" class="tab on" data-t="g">Geral</button><button type="button" class="tab" data-t="k">Conhecimento</button><button type="button" class="tab" data-t="s">Skills</button><button type="button" class="tab" data-t="f">Fluxo e controle</button>
+  </div>
+  <div class="tp" data-t="g">
+    <div class="pick">
+      <div class="bigav" id="bPrev"></div>
+      <div class="colors" id="bColors"></div>
+      <div class="shapes" id="bShapes"></div>
+    </div>
+    <label class="f">Nome<input type="text" id="bName" maxlength="40" required placeholder="Nome do bot"></label>
+    <label class="f">Para que serve (os outros bots leem isso)<input type="text" id="bDesc" maxlength="200"></label>
+    <label class="f">Personalidade e regras (instruções do bot)<textarea class="fld" id="bPersona" rows="6" maxlength="8000"></textarea></label>
+    <label class="f">Modelo
+      <select id="bModel"><option value="auto">Automático (Haiku nas tarefas leves, Sonnet nas demais)</option><option value="haiku">Haiku (mais leve, gasta menos)</option><option value="sonnet">Sonnet (equilibrado)</option><option value="opus">Opus (gasta mais do seu limite)</option></select>
+    </label>
+    <label class="f">Idioma e tom das respostas<input type="text" id="bLang" maxlength="60" placeholder="ex.: português do Brasil, informal"></label>
+    <div class="f">Ferramentas (somente leitura e web)<div class="checks" id="bTools"></div></div>
+    <div class="checks"><label><input type="checkbox" id="bCoord"> Este bot é coordenador (delega aos outros)</label></div>
+    <div id="bSuggBox"><div class="hint" style="margin-bottom:8px">Sugestões para começar</div><div class="sugg" id="bSugg"></div></div>
+  </div>
+  <div class="tp" data-t="k" hidden>
+    <div class="f">Base de conhecimento (PDF, texto, Word, Excel…)
+      <div class="skl" id="knList"></div>
+      <div id="knAdd"><button class="btn" type="button" id="knBtn">Enviar arquivos</button><input type="file" id="knFile" multiple hidden accept=".pdf,.txt,.md,.csv,.json,.docx,.xlsx,.pptx,.srt,.vtt"></div>
+      <div class="hint" id="knHint">O bot consulta estes arquivos antes de responder. Salve o bot primeiro para enviar.</div>
+    </div>
+    <label class="f">Memória do bot (também dá para escrever no chat: /lembrar texto)<textarea class="fld" id="bMem" rows="4" maxlength="4000" placeholder="- sempre legenda curta&#10;- cliente X odeia emoji"></textarea></label>
+    <label class="f">Exemplos de entregas aprovadas (ele imita o padrão)<textarea class="fld" id="bEx" rows="5" maxlength="6000"></textarea></label>
+    <label class="f">Checklist de entrega (um item por linha; o bot confere antes de entregar)<textarea class="fld" id="bChk" rows="4" maxlength="2000" placeholder="Legenda com no máximo 2 linhas&#10;Sem erros de português"></textarea></label>
+  </div>
+  <div class="tp" data-t="s" hidden>
+    <div class="f">Skills deste bot
+      <div class="skl" id="skList"></div>
+      <div id="skAdd" hidden>
+        <div class="actions" style="justify-content:flex-start;gap:8px;flex-wrap:wrap">
+          <button class="btn" type="button" id="skZip">Enviar skill (.zip)</button>
+          <button class="btn" type="button" id="skPasteBtn">Colar SKILL.md</button>
+        </div>
+        <input type="file" id="skFile" accept=".zip,.md" hidden>
+        <div id="skPaste" hidden style="display:none;flex-direction:column;gap:8px;margin-top:8px">
+          <input type="text" id="skName" placeholder="nome-da-skill (ex.: wellness-edit)" maxlength="40">
+          <textarea class="fld" id="skText" rows="6" placeholder="Cole aqui o conteúdo do SKILL.md"></textarea>
+          <button class="btn primary" type="button" id="skSave">Instalar skill</button>
+        </div>
+        <div style="display:flex;gap:8px;margin-top:10px"><select id="libSel" style="flex:1"></select><button class="btn" type="button" id="libAdd">Usar da biblioteca</button></div>
+      </div>
+      <div class="hint" id="skHint">Salve o bot primeiro; depois adicione skills aqui.</div>
+    </div>
+  </div>
+  <div class="tp" data-t="f" hidden>
+    <div class="f">Depois que este bot responder, passar o resultado para (fluxo, em ordem de cadastro)<div class="checks" id="bChain"></div></div>
+    <label class="f">Revisor automático (confere o resultado no fim)<select id="bRev"></select></label>
+    <div class="checks"><label><input type="checkbox" id="bAppr"> Pedir minha aprovação antes de enviar, publicar ou apagar algo</label></div>
+    <div class="checks"><label><input type="checkbox" id="bComp"> Usar minhas ferramentas conectadas (Composio)</label></div>
+    <div class="hint" id="compHint" hidden>A conexão do Composio ainda não foi configurada no .env, então hoje isso não tem efeito.</div>
+    <label class="f">Limite de chamadas por dia deste bot (0 = sem limite)<input type="number" id="bCap" min="0" max="1000" value="0"></label>
+    <label class="f">Pasta vigiada neste computador (arquivo novo vira tarefa; deixe vazio para desligar)<input type="text" id="bWatch" maxlength="300" placeholder="C:\Users\...\Videos\entrada"></label>
+    <div class="checks"><label><input type="checkbox" id="bAdv"> Modo avançado: pode criar arquivos e rodar programas liberados (para editar vídeo, por exemplo)</label></div>
+    <div id="advBox" hidden>
+      <label class="f">Programas liberados (separe por vírgula)<input type="text" id="bCmds" placeholder="ffmpeg, ffprobe, python"></label>
+      <label class="f">Tempo máximo por tarefa (minutos)<input type="number" id="bTmo" min="1" max="60" value="20"></label>
+      <div class="hint">O bot só roda estes programas, na pasta dele. O que ele salvar na pasta de saída volta para você no chat.</div>
+    </div>
+    <div class="f">Rotinas deste bot<div class="skl" id="bRts"></div><div><button class="btn" type="button" id="bRtAdd">Nova rotina</button></div></div>
+    <div class="hint" id="bStats"></div>
+  </div>
+  <div class="hint">Sem o modo avançado, os bots não escrevem arquivos nem rodam comandos. Cada chamada consome o limite da sua assinatura.</div>
+  <div class="actions">
+    <button class="btn danger" type="button" id="bDel" hidden>Excluir</button>
+    <button class="btn" type="button" id="bDup" hidden>Duplicar</button>
+    <button class="btn" type="button" id="bExp" hidden>Exportar</button>
+    <button class="btn" type="button" id="bCancel">Cancelar</button>
+    <button class="btn primary" type="submit" id="bSave">Salvar</button>
+  </div>
+</form></dialog>
+
+<dialog id="grpDlg"><form method="dialog" id="grpForm">
+  <h2>Novo grupo</h2>
+  <label class="f">Nome do grupo<input type="text" id="gTitle" maxlength="40" required></label>
+  <div class="f">Membros<div class="checks" id="gMembers"></div></div>
+  <div class="hint">Mande @nome para chamar um bot. Sem @, o coordenador do grupo (se houver) cuida do pedido e delega aos outros.</div>
+  <div class="actions"><button class="btn" type="button" id="gCancel">Cancelar</button><button class="btn primary" type="submit">Criar</button></div>
+</form></dialog>
+
+<dialog id="capDlg"><form method="dialog" id="capForm">
+  <h2>Limites de uso</h2>
+  <label class="f">Chamadas ao Claude por dia (1 a 1000)<input type="number" id="cDaily" min="1" max="1000" step="1" required></label>
+  <label class="f">Chamadas por mensagem (1 a 30)<input type="number" id="cMsg" min="1" max="30" step="1" required></label>
+  <div class="hint">É um teto de segurança da Central, não o limite do Claude. O limite real é o da sua assinatura. Cada chamada de bot conta uma vez, e o contador zera todo dia. Vale na hora, sem reiniciar.</div>
+  <div class="actions"><button class="btn" type="button" id="cCancel">Cancelar</button><button class="btn primary" type="submit">Salvar</button></div>
+</form></dialog>
+
+<dialog id="rtDlg"><form method="dialog" id="rtForm">
+  <h2 id="rtTitle">Nova rotina</h2>
+  <label class="f">Nome<input type="text" id="rName" maxlength="40" required placeholder="Ex.: Resumo de notícias de IA"></label>
+  <label class="f">Qual bot executa<select id="rBot"></select></label>
+  <label class="f">O que ele deve fazer<textarea class="fld" id="rPrompt" rows="4" maxlength="2000" required placeholder="Ex.: Pesquise as 5 principais notícias de IA de hoje e me entregue um resumo curto, com fonte."></textarea></label>
+  <label class="f">Horário<input type="time" id="rTime" required value="08:15"></label>
+  <div class="f">Dias<div class="checks days" id="rDays"></div></div>
+  <div class="checks"><label><input type="checkbox" id="rOn" checked> Rotina ligada</label></div>
+  <div class="hint">Roda sozinha no horário, com o PC ligado e a Central aberta (se o PC estiver desligado na hora, ela roda quando ligar, até 3 horas depois). Cada execução gasta ao menos 1 chamada do seu limite. O resultado chega no chat do bot.</div>
+  <div class="actions">
+    <button class="btn danger" type="button" id="rDel" hidden>Excluir</button>
+    <button class="btn" type="button" id="rCancel">Cancelar</button>
+    <button class="btn primary" type="submit">Salvar</button>
+  </div>
+</form></dialog>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const S = { bots: [], chats: [], routines: [], usage: { calls: 0 }, cap: 0, paused: false, tools: [], cur: null, chat: null, activity: [], typing: {}, unread: {}, editing: null, editingRt: null, draft: { color: 'blue', shape: 'circle' } };
+const DAYS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+const COLORS = { brown: '#8b5e3c', red: '#ef4444', orange: '#f97316', amber: '#f5a524', green: '#22c55e', teal: '#14b8a6', blue: '#3b82f6', purple: '#8b5cf6', pink: '#ec4899', gray: '#737373' };
+const COLOR_KEYS = Object.keys(COLORS);
+const SHAPES = ['circle', 'blob', 'squircle', 'pill', 'triangle', 'hexagon', 'cloud', 'drop'];
+const SHAPE_NAMES = { circle: 'Círculo', blob: 'Bolha', squircle: 'Quadrado', pill: 'Pílula', triangle: 'Triângulo', hexagon: 'Hexágono', cloud: 'Nuvem', drop: 'Gota' };
+
+function h(tag, props = {}, ...kids) {
+  const e = document.createElement(tag);
+  for (const [k, v] of Object.entries(props)) {
+    if (k === 'class') e.className = v; else if (k.startsWith('on')) e.addEventListener(k.slice(2), v);
+    else if (k === 'text') e.textContent = v; else e.setAttribute(k, v);
+  }
+  for (const c of kids.flat()) if (c != null) e.append(c.nodeType ? c : document.createTextNode(c));
+  return e;
+}
+const NS = 'http://www.w3.org/2000/svg';
+function sv(tag, attrs = {}, ...kids) { const e = document.createElementNS(NS, tag); for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, v); for (const c of kids) e.append(c); return e; }
+async function api(method, path, body) {
+  const r = await fetch(path, { method, headers: { 'content-type': 'application/json', 'x-grok': '1' }, body: body ? JSON.stringify(body) : undefined, credentials: 'same-origin' });
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(j.error || `erro ${r.status}`);
+  return j;
+}
+const store = { get: (k) => { try { return localStorage.getItem(k); } catch { return null; } }, set: (k, v) => { try { localStorage.setItem(k, v); } catch { /* sem armazenamento */ } } };
+const botBy = (s) => S.bots.find((b) => b.slug === s);
+const hash = (s) => { let x = 0; for (const c of String(s)) x = (x * 31 + c.charCodeAt(0)) >>> 0; return x; };
+const initials = (t) => (String(t).match(/[A-Za-zÀ-ú0-9]/g) || ['?']).slice(0, 2).join('').toUpperCase();
+const fmt = (ts) => new Date(ts).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+const fmtS = (ts) => new Date(ts).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+const sameDay = (a, b) => new Date(a).toDateString() === new Date(b).toDateString();
+function relTime(ts) {
+  const d = new Date(ts), n = new Date();
+  if (sameDay(ts, n)) return fmt(ts);
+  const y = new Date(n); y.setDate(n.getDate() - 1);
+  if (sameDay(ts, y)) return 'Ontem';
+  if (n - d < 6 * 864e5) return DAYS[d.getDay()];
+  return d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+}
+const nameOf = (s) => (s === 'user' ? 'Você' : s === 'system' ? 'Sistema' : (botBy(s)?.name || s));
+const busyChat = (id) => Object.values(S.typing[id] || {}).some(Boolean);
+const typingNames = (id) => Object.keys(S.typing[id] || {}).filter((k) => S.typing[id][k]).map(nameOf);
+const isMobile = () => matchMedia('(max-width: 900px)').matches;
+
+// ---------- avatares ----------
+function shapeEls(shape, fill) {
+  switch (shape) {
+    case 'blob': return [sv('path', { d: 'M50 8c22 0 42 14 42 38 0 24-18 46-42 46S8 70 8 46C8 22 28 8 50 8z', fill })];
+    case 'squircle': return [sv('rect', { x: 8, y: 8, width: 84, height: 84, rx: 28, fill })];
+    case 'pill': return [sv('rect', { x: 3, y: 24, width: 94, height: 52, rx: 26, fill })];
+    case 'triangle': return [sv('path', { d: 'M50 10c4 0 7 2 9 6l33 58c4 7-1 16-9 16H17c-8 0-13-9-9-16L41 16c2-4 5-6 9-6z', fill })];
+    case 'hexagon': return [sv('path', { d: 'M50 9l35 20v42L50 91 15 71V29z', fill, stroke: fill, 'stroke-width': 10, 'stroke-linejoin': 'round' })];
+    case 'cloud': return [sv('circle', { cx: 30, cy: 60, r: 22, fill }), sv('circle', { cx: 50, cy: 42, r: 26, fill }), sv('circle', { cx: 72, cy: 60, r: 22, fill }), sv('rect', { x: 30, y: 58, width: 42, height: 24, fill })];
+    case 'drop': return [sv('path', { d: 'M50 5C50 5 18 42 18 64a32 32 0 0 0 64 0C82 42 50 5 50 5z', fill })];
+    default: return [sv('circle', { cx: 50, cy: 50, r: 46, fill })];
+  }
+}
+const TEXT_Y = { triangle: 64, drop: 66, cloud: 56, pill: 52 };
+function avatarEl(color, shape, label, size, withText = true) {
+  const fill = COLORS[color] || COLORS.blue;
+  const s = sv('svg', { viewBox: '0 0 100 100', 'aria-hidden': 'true' }, ...shapeEls(shape, fill));
+  if (withText && size >= 28) {
+    const t = sv('text', { x: 50, y: TEXT_Y[shape] || 53, 'text-anchor': 'middle', 'dominant-baseline': 'central', 'font-size': 34 });
+    t.textContent = initials(label); s.append(t);
+  }
+  const e = h('span', { class: 'bav' }); e.style.width = e.style.height = size + 'px'; e.append(s); return e;
+}
+function styleOf(slug) {
+  const b = botBy(slug);
+  return { color: b?.color || COLOR_KEYS[hash(slug) % COLOR_KEYS.length], shape: b?.shape || SHAPES[(hash(slug) >> 3) % SHAPES.length] };
+}
+function botAvatar(slug, size) { const st = styleOf(slug); return avatarEl(st.color, st.shape, botBy(slug)?.name || slug, size); }
+function chatAvatar(c, size) {
+  if (c.type === 'direct') return botAvatar(c.members[0], size);
+  const ms = c.members.slice(0, 3), mini = Math.round(size * 0.62);
+  const box = h('span', { class: 'stack' }); box.style.width = box.style.height = size + 'px';
+  const pos = [[0, 0], [size - mini, Math.round(size * 0.1)], [Math.round((size - mini) / 2), size - mini]];
+  ms.forEach((m, i) => { const a = botAvatar(m, mini); a.style.left = pos[i][0] + 'px'; a.style.top = pos[i][1] + 'px'; a.querySelector('text')?.remove(); box.append(a); });
+  return box;
+}
+
+// ---------- tema ----------
+function applyTheme() {
+  const v = store.get('theme') || 'auto';
+  if (v === 'auto') delete document.documentElement.dataset.theme; else document.documentElement.dataset.theme = v;
+  const dark = v === 'dark' || (v === 'auto' && matchMedia('(prefers-color-scheme: dark)').matches);
+  $('themeColor').content = dark ? '#121212' : '#f5f5f6';
+}
+const THEME_NAMES = { auto: 'Automático', light: 'Claro', dark: 'Escuro' };
+matchMedia('(prefers-color-scheme: dark)').addEventListener('change', applyTheme);
+
+// ---------- lista de conversas ----------
+function itemEl(c) {
+  const tn = typingNames(c.id), last = c.last;
+  const who = last && last.from !== 'system' ? (last.from === 'user' ? 'Você: ' : (c.type === 'group' ? nameOf(last.from) + ': ' : '')) : '';
+  const prev = tn.length ? `${tn.join(', ')} trabalhando…` : last ? who + last.text : (c.type === 'group' ? `${c.members.length} bots` : (botBy(c.members[0])?.description || ''));
+  return h('div', { class: 'item' + (S.cur === c.id ? ' sel' : ''), onclick: () => openChat(c.id) },
+    h('div', { class: 'avwrap' + (busyChat(c.id) ? ' busy' : '') }, chatAvatar(c, 44), h('i', { class: 'online' })),
+    h('div', { class: 'meta' },
+      h('div', { class: 'row1' }, h('span', { class: 'nm', text: c.title }), h('span', { class: 'tm', text: last ? relTime(last.ts) : '' })),
+      h('div', { class: 'row2' }, h('span', { class: 'pv' + (tn.length ? ' typing' : ''), text: prev }), S.unread[c.id] ? h('i', { class: 'ud' }) : null)));
+}
+function renderList() {
+  const q = $('q').value.trim().toLowerCase();
+  const list = $('list'); list.replaceChildren();
+  const chats = S.chats.filter((c) => !q || c.title.toLowerCase().includes(q));
+  for (const c of chats) list.append(itemEl(c));
+  if (!chats.length) list.append(h('div', { class: 'emptylist', text: 'Nada por aqui.' }));
+  // atalhos no topo (celular)
+  const favs = $('favs'); favs.replaceChildren();
+  const directs = S.bots.map((b) => S.chats.find((c) => c.id === `d-${b.slug}`)).filter(Boolean)
+    .sort((a, b) => (botBy(b.members[0])?.coordinator ? 1 : 0) - (botBy(a.members[0])?.coordinator ? 1 : 0)).slice(0, 8);
+  for (const c of directs) favs.append(h('button', { class: 'fav', onclick: () => openChat(c.id) }, h('span', { class: 'avwrap' + (busyChat(c.id) ? ' busy' : '') }, chatAvatar(c, 64), h('i', { class: 'online' })), h('span', { class: 'n', text: c.title })));
+  $('meBtn').classList.toggle('paused', S.paused);
+}
+
+// ---------- chat ----------
+function renderHead() {
+  const c = S.chat; if (!c) return;
+  $('havwrap').replaceChildren(chatAvatar(c, 30));
+  const t = $('htitle'); t.replaceChildren(c.title);
+  if (c.type === 'group') t.append(h('span', { class: 'tag', text: 'grupo' }));
+  else if (botBy(c.members[0])?.coordinator) t.append(h('span', { class: 'tag', text: 'coord.' }));
+  const tn = typingNames(c.id);
+  const sub = $('hsub'); sub.className = 'sub' + (tn.length ? ' typing' : '');
+  sub.textContent = tn.length ? `${tn.join(', ')} trabalhando…` : '';
+  $('panelBtn').classList.toggle('busy', tn.length > 0);
+}
+function msgEl(m, prev) {
+  const own = S.chat.type === 'direct' ? S.chat.members[0] : null;
+  const cls = m.from === 'user' ? 'me' : m.from === 'system' ? (m.kind === 'error' ? 'error' : 'sys') : m.kind === 'delegation' ? 'delegation' : '';
+  const cont = prev && prev.from === m.from && m.from !== 'system' && m.ts - prev.ts < 120000 && sameDay(m.ts, prev.ts);
+  const e = h('div', { class: 'msg ' + cls + (cont ? ' cont' : '') });
+  if (m.from !== 'user' && m.from !== 'system' && !cont && (S.chat.type === 'group' || m.from !== own)) { const w = h('div', { class: 'who', text: nameOf(m.from) }); w.style.color = COLORS[styleOf(m.from).color]; e.append(w); }
+  if (m.files?.length) {
+    const md = h('div', { class: 'media' });
+    for (const f of m.files) {
+      const u = `/api/files/${f.id}`;
+      if (f.kind === 'image') md.append(h('a', { href: u, target: '_blank' }, h('img', { src: u, alt: f.name, loading: 'lazy' })));
+      else if (f.kind === 'video') md.append(h('video', { src: u, controls: '', preload: 'metadata', playsinline: '' }));
+      else if (f.kind === 'audio') md.append(h('audio', { src: u, controls: '', preload: 'none' }));
+      else md.append(h('a', { class: 'fl', href: u, target: '_blank' }, '📄 ' + f.name, h('small', { text: humanSz(f.size) })));
+      if (f.kind === 'image' || f.kind === 'video' || f.kind === 'audio') md.append(h('a', { class: 'dlk', href: u + '?dl=1', text: `Baixar ${f.name} (${humanSz(f.size)})` }));
+    }
+    e.append(md);
+  }
+  const needAppr = m.text && m.text.includes('[[APROVAR]]');
+  const shown = needAppr ? m.text.replace(/\s*\[\[APROVAR\]\]\s*/g, '').trim() : m.text;
+  if (shown) e.append(h('div', { class: 't', text: shown }));
+  if (needAppr && S.chat.messages[S.chat.messages.length - 1] === m) e.append(h('div', { class: 'appr' },
+    h('button', { class: 'btn primary', type: 'button', text: 'Aprovar', onclick: () => sendText('Aprovado. Pode executar exatamente o que você propôs.') }),
+    h('button', { class: 'btn', type: 'button', text: 'Recusar', onclick: () => sendText('Não execute. Recusado.') })));
+  if (cls === 'me' || cls === '' || cls === 'delegation') e.append(h('div', { class: 'ts', text: fmt(m.ts) }));
+  return e;
+}
+function dividerText(ts) { return `${sameDay(ts, Date.now()) ? 'Hoje' : new Date(ts).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })} ${fmt(ts)}`; }
+function renderMsgs(stick = true) {
+  const box = $('msgs'); const near = box.scrollHeight - box.scrollTop - box.clientHeight < 140;
+  const out = []; let prev = null;
+  for (const m of S.chat.messages) {
+    if (!prev || m.ts - prev.ts > 3600000 || !sameDay(m.ts, prev.ts)) out.push(h('div', { class: 'dv', text: dividerText(m.ts) }));
+    out.push(msgEl(m, prev && out[out.length - 1]?.className !== 'dv' ? prev : null)); prev = m;
+  }
+  $('msgcol').replaceChildren(...out);
+  if (stick || near) box.scrollTop = box.scrollHeight;
+}
+function renderTyping() {
+  const col = $('typcol'); col.replaceChildren();
+  const tn = S.chat ? typingNames(S.chat.id) : [];
+  if (tn.length) col.append(h('span', { class: 'dots' }, h('i'), h('i'), h('i')), h('span', { text: `${tn.join(', ')} trabalhando…` }));
+}
+
+// ---------- painel: tela (atividade ao vivo) + rotinas ----------
+const ICON = { start: '▸', tool: '⌕', delegate: '↗', done: '✓', error: '!' };
+function lineEl(it) {
+  const own = S.chat?.type === 'direct' ? S.chat.members[0] : null;
+  const who = (S.chat?.type === 'group' || it.bot !== own) ? `@${it.bot} · ` : '';
+  const tx = h('div', { class: 'tx' }, who + it.text);
+  if (it.detail) tx.append(h('small', { text: it.detail }));
+  return h('div', { class: 'ln k-' + it.kind }, h('span', { class: 'at', text: fmtS(it.ts) }), h('span', { class: 'ic', text: ICON[it.kind] || '•' }), tx);
+}
+function renderFeed(stick = true) {
+  const box = $('feed'); const near = box.scrollHeight - box.scrollTop - box.clientHeight < 60;
+  box.replaceChildren();
+  if (!S.activity.length) box.append(h('div', { class: 'none', text: 'Nada acontecendo agora. Quando o bot pesquisar, abrir páginas ou delegar, aparece aqui ao vivo.' }));
+  else for (const it of S.activity) box.append(lineEl(it));
+  if (stick || near) box.scrollTop = box.scrollHeight;
+  const on = S.chat && busyChat(S.chat.id);
+  $('sbar').classList.toggle('on', Boolean(on));
+  $('sstate').textContent = on ? 'trabalhando' : 'ocioso';
+}
+function daysText(d) {
+  if (d.length === 7) return 'Todos os dias';
+  if (d.join() === '1,2,3,4,5') return 'Dias úteis';
+  if (d.join() === '0,6') return 'Fins de semana';
+  return d.map((x) => DAYS[x]).join(', ');
+}
+const CLOCK = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>';
+const PAUSEI = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M10 9v6M14 9v6"/></svg>';
+function iconSpan(cls, html) { const e = h('span', { class: cls }); e.innerHTML = html; return e; } // html fixo e estático, sem dados do usuário
+function renderRoutines() {
+  const box = $('rts'); box.replaceChildren();
+  const c = S.chat;
+  const list = S.routines.filter((r) => !c ? true : c.type === 'group' ? c.members.includes(r.bot) : r.bot === c.members[0]);
+  if (!list.length) box.append(h('div', { class: 'none', text: 'Nenhuma rotina. Toque em + para agendar uma tarefa recorrente.' }));
+  for (const r of list) {
+    const st = h('button', { class: 'st', title: r.enabled ? 'Ligada (toque para pausar)' : 'Pausada (toque para ligar)', onclick: () => api('PUT', `/api/routines/${r.id}`, { enabled: !r.enabled }).catch((e) => alert(e.message)) });
+    st.innerHTML = r.enabled ? CLOCK : PAUSEI; // ícone estático
+    box.append(h('div', { class: 'rt' + (r.enabled ? '' : ' off') }, st,
+      h('div', { class: 'm' }, h('div', { class: 'n', text: r.name }), h('div', { class: 's', text: r.enabled ? `${daysText(r.days)} às ${r.time} · ${nameOf(r.bot)}` : `Pausada · ${nameOf(r.bot)}` })),
+      h('button', { class: 'ib', title: 'Executar agora', onclick: async () => { try { await api('POST', `/api/routines/${r.id}/run`, {}); if (S.cur !== `d-${r.bot}`) openChat(`d-${r.bot}`); } catch (e) { alert(e.message); } }, text: '▶' }),
+      h('button', { class: 'ib', title: 'Editar', onclick: () => openRoutineDialog(r.id), text: '✎' })));
+  }
+}
+function renderPanel() {
+  const c = S.chat;
+  $('ptitle').textContent = !c ? 'Tela' : c.type === 'group' ? 'Atividade do grupo' : `Tela de ${c.title}`;
+  $('pcap').textContent = c ? (c.type === 'group' ? 'O que os bots do grupo estão fazendo' : `${c.title} está fazendo isto agora`) : '';
+  renderFeed(); renderRoutines(); renderUsage();
+}
+function renderUsage() {
+  const pct = S.cap ? Math.min(100, Math.round((S.usage.calls / S.cap) * 100)) : 0;
+  $('utext').textContent = S.paused ? `Central pausada · ${S.usage.calls}/${S.cap} chamadas hoje` : `${S.usage.calls}/${S.cap} chamadas ao Claude hoje`;
+  $('ubar').firstElementChild.style.width = pct + '%';
+  $('ubar').classList.toggle('warn', pct >= 80);
+  $('pausedBar').classList.toggle('on', S.paused);
+  $('meUse').textContent = S.paused ? 'pausada' : `${S.usage.calls}/${S.cap}`;
+  $('meBtn').classList.toggle('paused', S.paused);
+}
+
+async function openChat(id) {
+  S.cur = id; delete S.unread[id];
+  const c = await api('GET', `/api/chats/${id}`);
+  S.activity = c.activity || []; delete c.activity; S.chat = c;
+  $('empty').style.display = 'none'; $('chat').classList.add('on'); $('app').classList.remove('psheet'); $('app').classList.add('inchat');
+  renderHead(); renderMsgs(true); renderTyping(); renderList(); renderPanel(); renderChips(); history.replaceState(null, '', '#' + id);
+  if (!matchMedia('(pointer: coarse)').matches) $('in').focus();
+}
+async function loadState() {
+  Object.assign(S, await api('GET', '/api/state'));
+  renderList(); renderUsage();
+  if (S.cur && !S.chats.find((c) => c.id === S.cur)) { S.cur = null; S.chat = null; $('chat').classList.remove('on'); $('empty').style.display = ''; $('app').classList.remove('inchat'); }
+  if (S.chat) { renderHead(); renderRoutines(); }
+}
+const humanSz = (n) => (n >= 1048576 ? `${(n / 1048576).toFixed(1)} MB` : `${Math.max(1, Math.round(n / 1024))} KB`);
+S.pend = {};
+const pendOf = () => (S.pend[S.cur] ||= []);
+function renderChips() {
+  const box = $('chips'); box.replaceChildren();
+  for (const f of S.cur ? pendOf() : []) {
+    const c = h('div', { class: 'chip' + (f.error ? ' err' : '') }, h('span', { text: f.error ? `${f.name}: ${f.error}` : `${f.name} · ${f.done ? humanSz(f.size) : Math.round(f.pct || 0) + '%'}` }));
+    if (!f.done && !f.error) c.append(h('i', { style: `width:${f.pct || 0}px` }));
+    c.append(h('button', { type: 'button', title: 'Remover', text: '×', onclick: () => { f.xhr?.abort(); S.pend[f.chat] = S.pend[f.chat].filter((x) => x !== f); renderChips(); } }));
+    box.append(c);
+  }
+}
+function uploadFile(file) {
+  const chat = S.cur; const f = { name: file.name, size: file.size, chat, pct: 0 };
+  (S.pend[chat] ||= []).push(f); renderChips();
+  const x = new XMLHttpRequest(); f.xhr = x;
+  x.open('POST', `/api/chats/${chat}/upload?name=${encodeURIComponent(file.name)}`);
+  x.setRequestHeader('x-grok', '1'); x.setRequestHeader('content-type', 'application/octet-stream');
+  x.upload.onprogress = (ev) => { if (ev.lengthComputable) { f.pct = ev.loaded / ev.total * 100; renderChips(); } };
+  x.onload = () => { let j = {}; try { j = JSON.parse(x.responseText); } catch {} if (x.status === 200) { Object.assign(f, j, { done: true }); } else f.error = j.error || `erro ${x.status}`; renderChips(); };
+  x.onerror = () => { f.error = 'falha no envio'; renderChips(); };
+  x.send(file);
+}
+function addFiles(list) { if (!S.cur) return; for (const f of list) uploadFile(f); }
+$('clip').onclick = () => $('fileIn').click();
+$('fileIn').onchange = (e) => { addFiles([...e.target.files]); e.target.value = ''; };
+for (const ev of ['dragover', 'dragenter']) $('main')?.addEventListener(ev, (e) => { if (e.dataTransfer?.types?.includes('Files')) { e.preventDefault(); $('main').classList.add('dropzone'); } });
+for (const ev of ['dragleave', 'drop']) $('main')?.addEventListener(ev, (e) => { if (ev === 'drop' && e.dataTransfer?.files?.length) { e.preventDefault(); addFiles([...e.dataTransfer.files]); } $('main').classList.remove('dropzone'); });
+$('in').addEventListener('paste', (e) => { const fs = [...(e.clipboardData?.files || [])]; if (fs.length) { e.preventDefault(); addFiles(fs); } });
+async function sendText(t) { if (!S.cur) return; try { await api('POST', `/api/chats/${S.cur}/messages`, { text: t }); } catch (e) { alert(e.message); } }
+async function send() {
+  if (!S.cur) return;
+  if (window.Notification && Notification.permission === 'default') Notification.requestPermission().catch(() => {});
+  const t = $('in').value.trim(); const list = pendOf();
+  if (list.some((f) => !f.done && !f.error)) { alert('Aguarde o envio dos arquivos terminar.'); return; }
+  const ready = list.filter((f) => f.done); if (list.some((f) => f.error)) S.pend[S.cur] = list.filter((f) => f.done);
+  if (!t && !ready.length) return;
+  $('in').value = ''; autosize(); S.pend[S.cur] = []; renderChips();
+  try { await api('POST', `/api/chats/${S.cur}/messages`, { text: t, files: ready.map((f) => f.id) }); } catch (e) { alert(e.message); $('in').value = t; S.pend[S.cur] = ready; renderChips(); }
+}
+function autosize() { const i = $('in'); i.style.height = 'auto'; i.style.height = Math.min(i.scrollHeight, 160) + 'px'; }
+
+// ---------- tempo real ----------
+function connect() {
+  const es = new EventSource('/api/events');
+  es.onopen = () => { loadState().then(() => S.cur && openChat(S.cur)).catch(() => {}); };
+  es.onmessage = (ev) => {
+    const d = JSON.parse(ev.data);
+    if (d.type === 'message') {
+      const i = S.chats.findIndex((c) => c.id === d.chatId);
+      if (i >= 0) S.chats[i] = d.summary; else S.chats.unshift(d.summary);
+      S.chats.sort((a, b) => b.updated - a.updated);
+      if (S.cur === d.chatId && S.chat) { if (!S.chat.messages.find((m) => m.id === d.message.id)) { S.chat.messages.push(d.message); renderMsgs(false); } }
+      else if (d.message.from !== 'user' && d.message.from !== 'system') S.unread[d.chatId] = true;
+      if (document.hidden && d.message.from !== 'user' && d.message.from !== 'system' && window.Notification && Notification.permission === 'granted') { try { new Notification(nameOf(d.message.from), { body: (d.message.text || 'Arquivo pronto').replace(/\[\[APROVAR\]\]/g, '').slice(0, 140), tag: d.chatId }); } catch { /* sem notificação */ } }
+      renderList();
+    } else if (d.type === 'typing') {
+      (S.typing[d.chatId] ||= {})[d.bot] = d.on; renderList();
+      if (S.cur === d.chatId) { renderHead(); renderTyping(); renderFeed(false); }
+    } else if (d.type === 'activity') {
+      if (S.cur === d.chatId) { S.activity.push(d.item); if (S.activity.length > 80) S.activity.shift(); renderFeed(false); }
+    } else if (d.type === 'usage') { S.usage = d.usage; S.cap = d.cap; renderUsage(); }
+    else if (d.type === 'paused') { S.paused = d.paused; renderUsage(); renderList(); }
+    else if (d.type === 'reset') { const i = S.chats.findIndex((c) => c.id === d.chatId); if (i >= 0) S.chats[i] = d.summary; if (S.cur === d.chatId) { S.chat.messages = []; S.activity = []; renderMsgs(true); renderFeed(); } renderList(); }
+    else if (d.type === 'state') loadState();
+  };
+}
+
+// ---------- menus ----------
+function hideMenu() { $('menu').hidden = true; }
+function showMenu(anchor, items, place = 'below') {
+  const m = $('menu'); m.replaceChildren();
+  for (const it of items) {
+    if (it.sep) m.append(h('div', { class: 'sep' }));
+    else if (it.info) m.append(h('div', { class: 'info', text: it.info }));
+    else m.append(h('button', { class: 'mi' + (it.danger ? ' danger' : ''), onclick: () => { hideMenu(); it.run(); }, text: it.label }));
+  }
+  m.hidden = false;
+  const r = anchor.getBoundingClientRect(), mw = m.offsetWidth, mh = m.offsetHeight;
+  const left = place === 'above-left' ? Math.min(Math.max(8, r.left), innerWidth - mw - 8) : Math.min(Math.max(8, r.right - mw), innerWidth - mw - 8);
+  const top = place.startsWith('above') ? Math.max(8, r.top - mh - 8) : Math.min(r.bottom + 8, innerHeight - mh - 8);
+  m.style.left = left + 'px'; m.style.top = top + 'px';
+}
+document.addEventListener('click', (e) => { if (!$('menu').hidden && !e.target.closest('#menu') && !e.target.closest('[data-menu]')) hideMenu(); });
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape') hideMenu(); });
+$('plusBtn').onclick = (e) => { e.stopPropagation(); showMenu($('plusBtn'), [
+  { label: 'Novo bot', run: () => openBotDialog(null) }, { label: 'Importar bot (.json)', run: () => $('impFile').click() }, { label: 'Novo grupo', run: openGroupDialog }, { label: 'Nova rotina', run: () => openRoutineDialog(null) }]); };
+$('meBtn').onclick = (e) => { e.stopPropagation(); showMenu($('meBtn'), [
+  { info: `${S.usage.calls}/${S.cap} chamadas ao Claude hoje` }, { sep: true },
+  { label: 'Limites de uso…', run: openCapDialog },
+  { label: `Tema: ${THEME_NAMES[store.get('theme') || 'auto']}`, run: () => { const order = ['auto', 'light', 'dark']; store.set('theme', order[(order.indexOf(store.get('theme') || 'auto') + 1) % 3]); applyTheme(); } },
+  { label: S.paused ? 'Retomar a central' : 'Pausar a central', run: () => api('POST', '/api/pause', { paused: !S.paused }).catch((x) => alert(x.message)) }], 'above-left'); };
+$('moreBtn').onclick = (e) => { e.stopPropagation(); const c = S.chat; if (!c) return; showMenu($('moreBtn'), [
+  c.type === 'direct' ? { label: 'Editar bot', run: () => openBotDialog(c.members[0]) } : { label: 'Excluir grupo', danger: true, run: async () => { if (confirm('Excluir este grupo?')) { try { await api('DELETE', `/api/chats/${c.id}`); await loadState(); } catch (x) { alert(x.message); } } } },
+  { label: 'Limpar conversa', danger: true, run: async () => { if (confirm('Apagar as mensagens e começar do zero?')) await api('POST', `/api/chats/${c.id}/reset`, {}); } }]); };
+$('cplus').onclick = (e) => {
+  e.stopPropagation(); const c = S.chat; if (!c) return;
+  const items = [];
+  if (c.type === 'group') for (const s of c.members) items.push({ label: '@' + s, run: () => { const i = $('in'); i.value = `@${s} ` + i.value; i.focus(); autosize(); } });
+  const rts = S.routines.filter((r) => c.type === 'group' ? c.members.includes(r.bot) : r.bot === c.members[0]);
+  if (rts.length) { if (items.length) items.push({ sep: true }); for (const r of rts) items.push({ label: `Rodar: ${r.name}`, run: () => api('POST', `/api/routines/${r.id}/run`, {}).catch((x) => alert(x.message)) }); }
+  if (!items.length) items.push({ info: 'Sem menções ou rotinas por aqui. Crie uma rotina no painel da direita.' });
+  showMenu($('cplus'), items, 'above-left');
+};
+$('panelBtn').onclick = () => {
+  if (isMobile()) $('app').classList.toggle('psheet');
+  else { const on = $('app').classList.toggle('nopanel'); store.set('panel', on ? 'off' : 'on'); }
+};
+$('pclose').onclick = () => { if (isMobile()) $('app').classList.remove('psheet'); else { $('app').classList.add('nopanel'); store.set('panel', 'off'); } };
+$('back').onclick = () => { $('app').classList.remove('inchat'); $('app').classList.remove('psheet'); S.cur = null; S.chat = null; $('chat').classList.remove('on'); history.replaceState(null, '', location.pathname); renderList(); };
+
+// ---------- bots (cor + formato), grupos e rotinas ----------
+const SUGGESTIONS = [
+  { name: 'Editor de Vídeo', color: 'red', shape: 'hexagon', advanced: true, desc: 'Edita os vídeos que você enviar usando a skill instalada nele.', persona: 'Você é editor de vídeo. Quando eu enviar vídeos ou imagens, carregue SEMPRE a skill instalada em você com a ferramenta Skill e siga as regras dela à risca. Use ffmpeg para cortar, legendar e exportar. Salve somente o vídeo final na pasta de saída e diga em uma ou duas frases o que fez e qualquer dúvida que ficou. Nunca altere os arquivos originais. Português do Brasil, texto simples, sem markdown.' },
+  { name: 'Redator de Roteiros', color: 'orange', shape: 'squircle', desc: 'Escreve roteiros curtos de vídeo para Instagram e Reels.', persona: 'Você escreve roteiros curtos de vídeo para Instagram e Reels, com gancho forte nos primeiros 3 segundos, desenvolvimento direto e chamada final. Português do Brasil, texto simples, sem markdown, sem emoji.' },
+  { name: 'Analista de Dados', color: 'teal', shape: 'hexagon', desc: 'Explica números e tendências em linguagem simples.', persona: 'Você é analista de dados. Explica números, métricas e tendências em linguagem simples, aponta o que importa e o que está faltando para concluir. Nunca invente dados. Português do Brasil, texto simples, sem markdown.' },
+  { name: 'Gestor de Clientes', color: 'pink', shape: 'cloud', desc: 'Organiza demandas e prepara respostas para clientes da agência.', persona: 'Você ajuda a organizar demandas de clientes de uma agência de marketing e a redigir respostas curtas, claras e educadas. Pergunta o que faltar antes de prometer prazo. Português do Brasil, texto simples, sem markdown.' },
+  { name: 'Caçador de Tendências', color: 'purple', shape: 'drop', desc: 'Pesquisa o que está em alta em IA, dados e marketing.', persona: 'Você pesquisa na web o que está em alta em IA, dados e marketing e entrega 3 a 5 achados com fonte e grau de confiança. Nunca invente links. Português do Brasil, texto simples, sem markdown.' },
+];
+function renderPick() {
+  $('bPrev').replaceChildren(avatarEl(S.draft.color, S.draft.shape, $('bName').value || 'Bot', 96));
+  const cs = $('bColors'); cs.replaceChildren();
+  for (const k of COLOR_KEYS) { const d = h('button', { class: 'dot' + (S.draft.color === k ? ' on' : ''), type: 'button', title: k, 'aria-label': k, onclick: () => { S.draft.color = k; renderPick(); } }); d.style.background = COLORS[k]; cs.append(d); }
+  const ss = $('bShapes'); ss.replaceChildren();
+  for (const k of SHAPES) ss.append(h('button', { class: 'shp' + (S.draft.shape === k ? ' on' : ''), type: 'button', title: SHAPE_NAMES[k], 'aria-label': SHAPE_NAMES[k], onclick: () => { S.draft.shape = k; renderPick(); } }, avatarEl(S.draft.color, k, '', 30, false)));
+}
+$('bName').addEventListener('input', renderPick);
+function toolChecks(selected) {
+  const box = $('bTools'); box.replaceChildren();
+  for (const t of S.tools) box.append(h('label', {}, h('input', { type: 'checkbox', value: t, ...(selected.includes(t) ? { checked: '' } : {}) }), t));
+}
+
+// ---------- modo avançado e skills ----------
+function advLoad(b) {
+  $('bAdv').checked = Boolean(b?.advanced); $('advBox').hidden = !b?.advanced;
+  $('bCmds').value = (b?.commands || ['ffmpeg', 'ffprobe']).join(', '); $('bTmo').value = b?.timeoutMin || 20;
+}
+$('bAdv').onchange = () => { $('advBox').hidden = !$('bAdv').checked; };
+function renderSkills(b) {
+  const list = $('skList'); list.replaceChildren();
+  $('skAdd').hidden = !b; $('skHint').hidden = Boolean(b) && (b.skills || []).length > 0;
+  $('skHint').textContent = b ? 'Nenhuma skill instalada. Envie o .zip da pasta da skill ou cole o SKILL.md.' : 'Salve o bot primeiro; depois adicione skills aqui.';
+  for (const k of b?.skills || []) list.append(h('div', { class: 'sk' }, h('b', { text: k.name }), h('span', { text: k.description }),
+    h('button', { type: 'button', style: 'color:var(--accent)', text: 'Biblioteca', title: 'Guardar na biblioteca para usar em outros bots', onclick: async () => { try { await api('POST', `/api/bots/${S.editing}/skills/${k.name}/share`); loadLib(); alert('Guardada na biblioteca.'); } catch (e) { alert(e.message); } } }),
+    h('button', { type: 'button', text: 'Remover', onclick: async () => { if (!confirm(`Remover a skill ${k.name}?`)) return; try { renderSkills(await api('DELETE', `/api/bots/${S.editing}/skills/${k.name}`)); await loadState(); } catch (e) { alert(e.message); } } })));
+}
+$('skPasteBtn').onclick = () => { const p = $('skPaste'); p.style.display = p.style.display === 'none' ? 'flex' : 'none'; };
+$('skZip').onclick = () => $('skFile').click();
+$('skFile').onchange = async (e) => {
+  const f = e.target.files[0]; e.target.value = ''; if (!f || !S.editing) return;
+  try {
+    if (/\.md$/i.test(f.name)) { renderSkills(await api('PUT', `/api/bots/${S.editing}/skills/${encodeURIComponent((f.name.replace(/\.md$/i, '') || 'skill').toLowerCase().replace(/[^a-z0-9-]+/g, '-'))}`, { content: await f.text() })); }
+    else {
+      const r = await fetch(`/api/bots/${S.editing}/skills-zip?name=${encodeURIComponent(f.name.replace(/\.zip$/i, ''))}`, { method: 'PUT', headers: { 'x-grok': '1' }, body: f, credentials: 'same-origin' });
+      const j = await r.json().catch(() => ({})); if (!r.ok) throw new Error(j.error || `erro ${r.status}`); renderSkills(j);
+    }
+    await loadState();
+  } catch (x) { alert(x.message); }
+};
+$('skSave').onclick = async () => {
+  const name = $('skName').value.trim().toLowerCase().replace(/[^a-z0-9-]+/g, '-').replace(/^-+|-+$/g, '');
+  if (!S.editing) return;
+  try { renderSkills(await api('PUT', `/api/bots/${S.editing}/skills/${name || 'skill'}`, { content: $('skText').value })); $('skText').value = ''; $('skName').value = ''; $('skPaste').style.display = 'none'; await loadState(); } catch (e) { alert(e.message); }
+};
+const tabShow = (t) => { for (const x of document.querySelectorAll('#bTabs .tab')) x.classList.toggle('on', x.dataset.t === t); for (const x of document.querySelectorAll('#botForm .tp')) x.hidden = x.dataset.t !== t; };
+for (const x of document.querySelectorAll('#bTabs .tab')) x.onclick = () => tabShow(x.dataset.t);
+async function loadLib() { try { const l = await api('GET', '/api/library'); const sel = $('libSel'); sel.replaceChildren(...l.map((k) => h('option', { value: k.name, text: `${k.name} — ${k.description}` }))); $('libAdd').disabled = !l.length; if (!l.length) sel.append(h('option', { text: 'Biblioteca vazia (use “Biblioteca” numa skill instalada)' })); } catch { /* sem biblioteca */ } }
+function renderKnow(b) {
+  const l = $('knList'); l.replaceChildren(); $('knAdd').hidden = !b; $('knHint').textContent = b ? 'O bot consulta estes arquivos antes de responder (máx. 30 arquivos, 50 MB cada).' : 'Salve o bot primeiro para enviar arquivos.';
+  for (const k of b?.knowledge || []) l.append(h('div', { class: 'sk' }, h('b', { text: k.name }), h('span', { text: humanSz(k.size) }),
+    h('button', { type: 'button', text: 'Remover', onclick: async () => { try { const nb = await api('DELETE', `/api/bots/${S.editing}/knowledge/${encodeURIComponent(k.name)}`); renderKnow(nb); await loadState(); } catch (e) { alert(e.message); } } })));
+}
+function renderFlow(b) {
+  const others = S.bots.filter((x) => x.slug !== (b?.slug || ''));
+  $('bChain').replaceChildren(...others.filter((x) => !x.coordinator).map((x) => h('label', {}, h('input', { type: 'checkbox', value: x.slug, ...((b?.chain || []).includes(x.slug) ? { checked: '' } : {}) }), x.name)));
+  const rv = $('bRev'); rv.replaceChildren(h('option', { value: '', text: 'Sem revisor' }), ...others.filter((x) => !x.coordinator).map((x) => h('option', { value: x.slug, text: x.name }))); rv.value = b?.reviewer || '';
+  $('bAppr').checked = Boolean(b?.approval); $('bComp').checked = b ? b.composio : true; $('compHint').hidden = S.composioReady;
+  $('bCap').value = b?.dailyCap || 0; $('bWatch').value = b?.watchDir || '';
+  const rl = $('bRts'); rl.replaceChildren();
+  for (const r of b ? S.routines.filter((x) => x.bot === b.slug) : []) rl.append(h('div', { class: 'sk' }, h('b', { text: r.time }), h('span', { text: r.name }), h('button', { type: 'button', text: 'Editar', onclick: () => openRoutineDialog(r.id) })));
+  $('bRtAdd').hidden = !b; $('bStats').textContent = b ? `Chamadas: ${b.today} hoje · ${b.calls} no total.` : '';
+}
+$('bRtAdd').onclick = () => openRoutineDialog(null, S.editing);
+$('knBtn').onclick = () => $('knFile').click();
+$('knFile').onchange = async (e) => {
+  const fl = [...e.target.files]; e.target.value = ''; if (!S.editing) return;
+  for (const f of fl) {
+    try {
+      const r = await fetch(`/api/bots/${S.editing}/knowledge?name=${encodeURIComponent(f.name)}`, { method: 'POST', headers: { 'x-grok': '1', 'content-type': 'application/octet-stream' }, body: f, credentials: 'same-origin' });
+      const j = await r.json().catch(() => ({})); if (!r.ok) throw new Error(j.error || `erro ${r.status}`); renderKnow(j);
+    } catch (x) { alert(`${f.name}: ${x.message}`); }
+  }
+  await loadState();
+};
+$('libAdd').onclick = async () => { const n = $('libSel').value; if (!n || !S.editing) return; try { renderSkills(await api('POST', `/api/bots/${S.editing}/library/${n}`)); await loadState(); } catch (e) { alert(e.message); } };
+$('bDup').onclick = async () => { try { const nb = await api('POST', `/api/bots/${S.editing}/duplicate`); $('botDlg').close(); await loadState(); openChat(`d-${nb.slug}`); } catch (e) { alert(e.message); } };
+$('bExp').onclick = async () => {
+  try { const j = await api('GET', `/api/bots/${S.editing}/export`); const a = h('a', { href: URL.createObjectURL(new Blob([JSON.stringify(j)], { type: 'application/json' })), download: `${S.editing}.bot.json` }); document.body.append(a); a.click(); a.remove(); } catch (e) { alert(e.message); }
+};
+$('impFile').onchange = async (e) => {
+  const f = e.target.files[0]; e.target.value = ''; if (!f) return;
+  try {
+    const r = await fetch('/api/bots/import', { method: 'POST', headers: { 'x-grok': '1', 'content-type': 'application/octet-stream' }, body: f, credentials: 'same-origin' });
+    const j = await r.json().catch(() => ({})); if (!r.ok) throw new Error(j.error || `erro ${r.status}`);
+    await loadState(); openChat(`d-${j.slug}`);
+  } catch (x) { alert(x.message); }
+};
+function loadMore(b) {
+  $('bLang').value = b?.language || ''; $('bMem').value = b?.memory || ''; $('bEx').value = b?.examples || ''; $('bChk').value = b?.checklist || '';
+  renderKnow(b); renderFlow(b);
+}
+async function openBotDialog(slug) {
+  tabShow('g'); loadLib(); $('bDup').hidden = !slug; $('bExp').hidden = !slug;
+  S.editing = slug || null;
+  $('bDel').hidden = !slug; $('bSave').textContent = slug ? 'Salvar' : 'Criar bot'; $('bSuggBox').hidden = Boolean(slug);
+  if (slug) {
+    const b = await api('GET', `/api/bots/${slug}`); const st = styleOf(slug);
+    S.draft = { color: st.color, shape: st.shape };
+    $('bName').value = b.name; $('bDesc').value = b.description; $('bPersona').value = b.persona; $('bModel').value = b.model; $('bCoord').checked = b.coordinator; toolChecks(b.tools); advLoad(b); renderSkills(b); loadMore(b);
+  } else {
+    S.draft = { color: COLOR_KEYS[(S.bots.length * 3 + 6) % COLOR_KEYS.length], shape: SHAPES[S.bots.length % SHAPES.length] };
+    $('bName').value = ''; $('bDesc').value = ''; $('bPersona').value = ''; $('bModel').value = 'sonnet'; $('bCoord').checked = false; toolChecks(S.tools); advLoad(null); renderSkills(null); loadMore(null);
+    const sg = $('bSugg'); sg.replaceChildren();
+    for (const s of SUGGESTIONS) sg.append(h('button', { class: 'sg', type: 'button', onclick: () => { $('bName').value = s.name; $('bDesc').value = s.desc; $('bPersona').value = s.persona; $('bAdv').checked = Boolean(s.advanced); $('bCmds').value = s.advanced ? 'ffmpeg, ffprobe' : $('bCmds').value; $('advBox').hidden = !s.advanced; S.draft = { color: s.color, shape: s.shape }; renderPick(); } },
+      avatarEl(s.color, s.shape, s.name, 36), h('span', {}, h('b', { text: s.name }), h('span', { class: 'd', text: s.desc }))));
+  }
+  renderPick(); $('botDlg').showModal();
+}
+$('botForm').addEventListener('submit', async (ev) => {
+  ev.preventDefault();
+  const body = { name: $('bName').value, description: $('bDesc').value, persona: $('bPersona').value, model: $('bModel').value, coordinator: $('bCoord').checked, language: $('bLang').value, memory: $('bMem').value, examples: $('bEx').value, checklist: $('bChk').value, chain: [...$('bChain').querySelectorAll('input:checked')].map((i) => i.value), reviewer: $('bRev').value, approval: $('bAppr').checked, composio: $('bComp').checked, dailyCap: Number($('bCap').value) || 0, watchDir: $('bWatch').value.trim(), advanced: $('bAdv').checked, commands: $('bCmds').value.split(/[,\s]+/).filter(Boolean), timeoutMin: Number($('bTmo').value) || 20, color: S.draft.color, shape: S.draft.shape,
+    tools: [...$('bTools').querySelectorAll('input:checked')].map((i) => i.value) };
+  const wasNew = !S.editing;
+  try {
+    const b = S.editing ? await api('PUT', `/api/bots/${S.editing}`, body) : await api('POST', '/api/bots', body);
+    $('botDlg').close(); await loadState(); if (wasNew) { await openChat(`d-${b.slug}`); if (b.advanced) { alert('Bot criado! Agora abra “Editar bot” e instale a skill dele.'); openBotDialog(b.slug); } } else if (S.chat) openChat(S.cur);
+  } catch (e) { alert(e.message); }
+});
+$('bCancel').onclick = () => $('botDlg').close();
+$('bDel').onclick = async () => {
+  if (!S.editing || !confirm('Excluir este bot, a conversa e as rotinas dele? Não dá para desfazer.')) return;
+  try { await api('DELETE', `/api/bots/${S.editing}`); $('botDlg').close(); await loadState(); const first = S.chats[0]; if (first && !isMobile()) openChat(first.id); } catch (e) { alert(e.message); }
+};
+function openGroupDialog() {
+  $('gTitle').value = ''; const box = $('gMembers'); box.replaceChildren();
+  for (const b of S.bots) box.append(h('label', {}, h('input', { type: 'checkbox', value: b.slug }), b.name + (b.coordinator ? ' (coord.)' : '')));
+  $('grpDlg').showModal();
+}
+$('grpForm').addEventListener('submit', async (ev) => {
+  ev.preventDefault();
+  try {
+    const g = await api('POST', '/api/groups', { title: $('gTitle').value, members: [...$('gMembers').querySelectorAll('input:checked')].map((i) => i.value) });
+    $('grpDlg').close(); await loadState(); openChat(g.id);
+  } catch (e) { alert(e.message); }
+});
+$('gCancel').onclick = () => $('grpDlg').close();
+
+function openRoutineDialog(id, forBot) {
+  S.editingRt = id || null;
+  const r = id ? S.routines.find((x) => x.id === id) : null;
+  $('rtTitle').textContent = r ? 'Editar rotina' : 'Nova rotina';
+  $('rDel').hidden = !r;
+  const sel = $('rBot'); sel.replaceChildren();
+  for (const b of S.bots) sel.append(h('option', { value: b.slug, text: b.name }));
+  sel.value = r ? r.bot : forBot || (S.chat?.type === 'direct' ? S.chat.members[0] : (S.bots.find((b) => !b.coordinator) || S.bots[0])?.slug);
+  $('rName').value = r ? r.name : ''; $('rPrompt').value = r ? r.prompt : ''; $('rTime').value = r ? r.time : '08:15'; $('rOn').checked = r ? r.enabled : true;
+  const days = r ? r.days : [1, 2, 3, 4, 5];
+  const box = $('rDays'); box.replaceChildren();
+  DAYS.forEach((d, i) => box.append(h('label', {}, h('input', { type: 'checkbox', value: String(i), ...(days.includes(i) ? { checked: '' } : {}) }), d)));
+  $('rtDlg').showModal();
+}
+$('rtForm').addEventListener('submit', async (ev) => {
+  ev.preventDefault();
+  const body = { name: $('rName').value, bot: $('rBot').value, prompt: $('rPrompt').value, time: $('rTime').value, enabled: $('rOn').checked,
+    days: [...$('rDays').querySelectorAll('input:checked')].map((i) => Number(i.value)) };
+  try { if (S.editingRt) await api('PUT', `/api/routines/${S.editingRt}`, body); else await api('POST', '/api/routines', body); $('rtDlg').close(); await loadState(); renderRoutines(); }
+  catch (e) { alert(e.message); }
+});
+$('rCancel').onclick = () => $('rtDlg').close();
+$('rDel').onclick = async () => { if (!S.editingRt || !confirm('Excluir esta rotina?')) return; try { await api('DELETE', `/api/routines/${S.editingRt}`); $('rtDlg').close(); await loadState(); renderRoutines(); } catch (e) { alert(e.message); } };
+$('addRt').onclick = () => openRoutineDialog(null);
+function openCapDialog() { $('cDaily').value = S.cap; $('cMsg').value = S.perMessageCap || 8; $('capDlg').showModal(); }
+$('capForm').addEventListener('submit', async (ev) => {
+  ev.preventDefault();
+  try { const r = await api('PUT', '/api/settings', { dailyCap: Number($('cDaily').value), perMessageCap: Number($('cMsg').value) }); S.cap = r.dailyCap; S.perMessageCap = r.perMessageCap; $('capDlg').close(); renderUsage(); }
+  catch (e) { alert(e.message); }
+});
+$('cCancel').onclick = () => $('capDlg').close();
+$('ubar').parentElement.style.cursor = 'pointer'; $('ubar').parentElement.title = 'Alterar limites'; $('ubar').parentElement.onclick = openCapDialog;
+
+$('q').oninput = renderList;
+$('sendBtn').onclick = send;
+$('in').addEventListener('input', autosize);
+$('in').addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey && !matchMedia('(pointer: coarse)').matches) { e.preventDefault(); send(); } });
+if (store.get('panel') === 'off') $('app').classList.add('nopanel');
+applyTheme();
+
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => {});
+loadState().then(() => {
+  connect();
+  const id = location.hash.slice(1);
+  const valid = id && S.chats.find((c) => c.id === id)?.id;
+  const pick = valid || (!isMobile() ? (S.chats.find((c) => c.id === 'd-coordenador')?.id || S.chats[0]?.id) : null);
+  if (pick) openChat(pick);
+}).catch((e) => { document.body.textContent = 'Erro ao carregar: ' + e.message; });
+</script>
+</body>
+</html>
