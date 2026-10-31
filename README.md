@@ -1,142 +1,120 @@
-# Atlas
+# Atlas — Central de Bots
 
-Bot de Telegram que usa o **Claude Code** (sua assinatura) como cérebro. Sem API paga, sem dependências npm.
+Uma página web (instalável como app) com vários bots de IA, grupos, um coordenador, rotinas, clientes e entregas. Roda no **seu computador** e usa o **Claude Code** (a sua assinatura) como cérebro. Sem API paga e sem dependências npm.
 
-Como funciona: você manda mensagem no Telegram → o bot chama `claude -p` no seu computador → devolve a resposta.
-A conversa continua entre mensagens (o bot guarda o ID da sessão). `/novo` começa uma conversa do zero.
+> Versão atual: veja `CHANGELOG.md`. Este guia vale para a versão 0.2.0 ou mais nova.
 
-## Segurança (já configurado)
-- Só responde ao seu ID do Telegram (`ALLOWED_USER_ID`). Qualquer outra pessoa é ignorada.
-- O Claude só pode **ler arquivos e usar a web** (`Read, Glob, Grep, WebSearch, WebFetch`). Não escreve, não apaga e não roda comandos.
-- Roda em modo `dontAsk` (nega tudo que não está liberado), bloqueia `Bash/Write/Edit` e ignora os seus servidores MCP.
-- Nunca usa `--dangerously-skip-permissions`.
-- O token vai só no `.env` (já está no `.gitignore`).
-- O bot só funciona com o computador ligado e esta janela aberta.
+## O que você precisa
+| Item | Detalhe |
+| --- | --- |
+| **Node.js 20.6 ou superior** | Versões 20 mais antigas que 20.6 não funcionam. Confira com `node -v`. |
+| **Git** | Para baixar e atualizar o projeto. |
+| **Claude Code logado** | `npm install -g @anthropic-ai/claude-code`, depois rode `claude` e entre com a conta da assinatura. Tudo o que os bots fazem sai do limite dessa assinatura. |
+| Windows, Mac ou Linux | Os arquivos `.bat` (autostart, reiniciar, Tailscale, Drive) são do **Windows**. No Mac/Linux use só `npm run web`. |
 
-## Primeira vez
-1. **Claude Code**: instale e faça login uma vez.
-   - `npm install -g @anthropic-ai/claude-code` (no PowerShell use `npm.cmd` e `claude.cmd` se der erro de scripts)
-   - rode `claude` e entre com a conta da sua assinatura
-2. **Bot no Telegram**: fale com @BotFather → `/newbot` → copie o token.
-3. **`.env`**: copie `.env.example` para `.env` e cole o token em `TELEGRAM_BOT_TOKEN`.
-4. **Seu ID**: rode `npm start`, mande "oi" ao bot e veja no terminal `Mensagem ignorada do ID 123456789`. Coloque esse número em `ALLOWED_USER_ID`, salve e reinicie.
-5. Pronto: mande uma mensagem ao bot.
+## Instalar e ligar (primeira vez)
+```
+git clone https://github.com/natandata/data-house
+cd data-house
+npm run web
+```
+No PowerShell, se aparecer erro de scripts, use `npm.cmd run web`.
 
-## Dia a dia
-- Ligar: `npm start` (dentro da pasta `grokbot`). Parar: `Ctrl+C`.
-- Mudar o jeito dele falar: edite `workdir/CLAUDE.md`.
-- Trocar o modelo: `CLAUDE_MODEL` no `.env` (`sonnet` é o padrão; `haiku` gasta menos; `opus` gasta mais e pode não estar no seu plano).
-- Testar sem Telegram nem Claude: `npm test`.
+1. O `.env` é criado sozinho a partir do `.env.example` na primeira vez. Os campos do Telegram podem ficar vazios.
+2. O terminal mostra um link `http://localhost:4400/login?t=...`. Abra no navegador. O link grava um cookie e depois basta abrir `http://localhost:4400`.
+3. Já vêm 4 bots prontos (Grokbot, Coordenador, Pesquisador e Escritor). Mande uma mensagem para confirmar que o Claude responde.
 
-## Ampliar permissões (com cuidado)
-`ALLOWED_TOOLS` no `.env` controla o que ele pode fazer. Cada ferramenta nova dá mais poder a quem controlar o seu Telegram.
-Não libere `Bash` nem `Write`/`Edit` sem entender o risco.
+> **Segurança do link:** o `t=...` é a chave de acesso à sua Central. Não coloque em prints, vídeos de aula nem mensagens. Para trocar a chave, apague `data/web/auth.json` e reinicie.
 
-## Limites
-- Usa o limite de uso da sua assinatura do Claude.
-- Respostas longas são divididas em várias mensagens.
-- Só texto por enquanto (sem áudio, imagem ou arquivo).
+## Ligar sem terminal (Windows)
+Dê dois cliques na pasta do projeto:
+- `instalar-autostart.bat`: liga a Central agora e toda vez que o Windows iniciar, em segundo plano. Abre o navegador já logado.
+- `abrir-central.bat`: abre a Central no navegador.
+- `reiniciar-central.bat`: reinicia a Central (o botão **Reiniciar a Central**, dentro da própria Central, aciona este arquivo).
+- `parar-central.bat` e `remover-autostart.bat`: parar e desfazer o início automático.
 
+O log fica em `data/web/server.log` e **contém o link com a chave**: não compartilhe esse arquivo.
+
+## Como usar
+- **Bots:** menu **+ > Novo bot** (nome, função, personalidade, modelo, ferramentas). O menu do bot tem abas Geral, Conhecimento, Skills e Fluxo e controle.
+- **Coordenador:** marque "é coordenador". Ele decide se responde sozinho ou delega aos outros bots (até 4 tarefas) e entrega a resposta final.
+- **Grupos:** junte bots e chame com `@nome`. Sem `@`, o coordenador do grupo cuida do pedido.
+- **Ctrl+K:** busca em mensagens, arquivos, links, conversas e comandos, com filtros por bot, cliente e data. `?` mostra os atalhos.
+- **Tarefas e aprovações:** o que está rodando, a fila, o que **espera você** (aprovar em um clique), cancelar, repetir e histórico.
+- **Clientes:** cadastre regras, memória, pasta do Drive e link da pasta. Ligue uma conversa a um cliente e os bots recebem esse contexto.
+- **Entregas:** grade ou lista dos arquivos que os bots geraram, com prévia, comparação de versões (v1 × v2), aprovação da versão final, envio em lote ao Drive e exportação CSV/JSON.
+- **Rotinas:** tarefas agendadas por bot, com próxima execução, último resultado e aviso se falhar.
+- **Custos e limites:** uso por dia e por bot e os medidores da assinatura, com aviso em 80% e 95%.
+- **Memória:** o que cada bot e cada cliente lembra. Em uma mensagem, o menu "⋯" tem **Lembrar disso**.
+- **Escritório:** painel ao vivo da equipe. **Pausar** bloqueia todas as chamadas ao Claude na hora.
+- **Acessibilidade:** texto maior e alto contraste (menu principal).
+
+## Sistema: backup, GitHub e atualizações
+Menu principal > **Sistema**:
+- **Backup:** copia bots, conversas e configurações para `data/backups` (guarda os 7 últimos). Pode ser automático de madrugada.
+- **GitHub:** envia o código para o seu repositório, sem `.env`, `data` e logs. Precisa do `git` logado no GitHub neste computador. A Central bloqueia o envio se achar uma chave do `.env` dentro do código.
+- **Atualizações:** avisa quando há versão nova no repositório configurado. Para atualizar uma instalação: `git pull` e reinicie a Central.
+
+## Google Drive
+Os bots **não** têm acesso ao seu Drive. Quem envia os arquivos é a Central, e só quando você pede (por exemplo "envie para o Drive") ou pelo botão Drive nas Entregas.
+
+Dois modos, nesta ordem:
+1. **Pasta do Google Drive para computador (recomendado):** com o aplicativo instalado e logado (ex.: `G:\Meu Drive`), a Central só copia o arquivo para lá e o Drive sincroniza. Não precisa de login extra. Se a pasta não for detectada, defina `DRIVE_LOCAL_DIR` no `.env`.
+2. **rclone:** rode `conectar-drive.bat` uma vez. **Atenção:** ele cria a conexão com o escopo `drive`, que dá acesso **amplo** ao Drive daquela conta (ler, criar e apagar). Use uma conta apropriada e só se aceitar isso. Para forçar este modo: `DRIVE_MODE=rclone`.
+
+No cadastro do cliente há dois campos: o **link da pasta** (serve para abrir a pasta com um clique) e o **nome/caminho da pasta** (é o que a Central usa para copiar os arquivos, ex.: `Cliente | Pasta`). No modo local, o "link" gerado pela Central é uma busca no Drive, não um link de compartilhamento direto.
+
+## Abrir no celular
+**Recomendado: Tailscale.** A Central continua só em `localhost` e o Tailscale entrega um endereço HTTPS privado, visível apenas nos seus aparelhos (e o app instala de verdade no celular).
+1. Instale o Tailscale no computador e no celular e entre na **mesma conta**.
+2. No painel de administração do Tailscale (tailscale.com/admin), em **DNS**, ative **MagicDNS** e **HTTPS Certificates**. Sem isso o passo seguinte avisa que o HTTPS não está habilitado.
+3. Dê dois cliques em `ligar-tailscale.bat`. Ele publica o endereço `https://NOME-DO-PC.xxxx.ts.net:4400`.
+4. No celular, com o Tailscale ligado, abra `https://NOME-DO-PC.xxxx.ts.net:4400/login?t=SUA_CHAVE` (a chave está em `data/web/auth.json`) e use "Adicionar à tela inicial" ou "Instalar app".
+5. `desligar-tailscale.bat` remove a publicação. O computador precisa estar ligado, com a Central rodando e o Tailscale conectado.
+
+**Sem Tailscale (só no mesmo Wi-Fi):** coloque `WEB_HOST=0.0.0.0` no `.env` e reinicie. O link fica HTTP sem criptografia e quem tiver a chave controla seus bots: use só em rede de confiança, e permita o firewall do Windows apenas na **rede privada**. Se o celular não conectar, rode `diagnostico-celular.bat`.
+
+## Configuração (`.env`)
+Todas são opcionais. O `.env` é criado a partir do `.env.example`.
+| Variável | Para que serve | Padrão |
+| --- | --- | --- |
+| `WEB_PORT` / `WEB_HOST` | Porta e endereço da Central | `4400` / `127.0.0.1` |
+| *(na interface)* | Limite diário de chamadas ao Claude: em **Custos e limites** / configurações de uso. Sem limite próprio, vale o da assinatura | sem limite próprio |
+| `MESSAGE_CALL_CAP` | Máximo de chamadas por mensagem sua | 8 |
+| `CLAUDE_CONCURRENCY` | Chamadas ao mesmo tempo | 2 |
+| `CLAUDE_TIMEOUT_MS` | Tempo máximo por resposta | 180000 |
+| `UPLOAD_MAX_MB` | Tamanho máximo de anexo | 1024 |
+| `DRIVE_LOCAL_DIR`, `DRIVE_MODE`, `DRIVE_FOLDER`, `DRIVE_REMOTE`, `RCLONE_BIN` | Google Drive (ver acima) | automático |
+| `GITHUB_REPO` | Repositório usado em Sistema (`dono/repositório`) | — |
+| `UPDATE_CHECK=off` | Desliga a verificação de versão nova | ligado |
+| `COMPOSIO_MCP_URL`, `COMPOSIO_API_KEY` | Apps conectados via Composio (a chave começa com `ck_`; nunca envie a ninguém) | — |
+| `WEB_DATA_DIR` | Onde ficam os dados | `data/web` |
+
+## Segurança e dados
+- Os bots começam só com ferramentas de **leitura e web**, em modo `dontAsk`. Eles não escrevem, não apagam e não rodam comandos, a menos que você ligue o **modo avançado** de um bot (aba Fluxo e controle). Mesmo ligado, `bash`, `curl`, `rm` e similares seguem bloqueados.
+- Resultados de um bot entram no coordenador como dados, não como instruções.
+- **Tudo fica na sua máquina**, em `data/web` (bots, conversas, arquivos, uso, backups). Essa pasta está no `.gitignore` e não vai para o GitHub. Se o projeto estiver numa pasta do OneDrive, as conversas vão para a nuvem da Microsoft.
+- Cada instalação começa limpa: bots, clientes e conversas não passam de uma máquina para outra. Use o backup para mover.
+- Cada máquina usa o limite da assinatura do Claude de quem fez o login.
+
+## Problemas comuns
+- **`.env: not found`:** use `npm run web` (ele cria o `.env`). Se rodar o `node` direto, copie `.env.example` para `.env`.
+- **O botão Reiniciar não voltou:** rode `reiniciar-central.bat` na pasta do projeto e dê Ctrl+F5 no navegador.
+- **Tela antiga depois de atualizar:** Ctrl+F5.
+- **Bot não responde:** rode `claude` no terminal e confira se está logado; veja `data/web/server.log`.
+- **Limite da assinatura esgotado:** a Central avisa e volta a responder quando o limite renova. O painel Custos mostra quando.
+
+## Testes
+```
+node test/web-e2e.mjs      # Central
+node test/extra-e2e.mjs    # recursos da versão 0.2.0
+```
+Usam um Claude de mentira e uma pasta temporária: não gastam assinatura nem mexem nos seus dados.
 
 ---
 
-# Central de Bots (interface estilo Telegram)
-
-Uma página web com vários bots, grupos e um coordenador. Roda no seu computador e usa o Claude Code (sua assinatura).
-
-## Ligar
-```
-npm.cmd run web
-```
-O terminal mostra um link com token (`http://localhost:4400/login?t=...`). Abra no navegador. O link grava um cookie, então depois basta abrir `http://localhost:4400`.
-Rode `npm.cmd run web` na pasta `grokbot`. Pode rodar junto com o bot do Telegram.
-
-## Como usar
-- **+ Bot**: nome, para que serve, personalidade/regras, modelo e ferramentas. Já vêm 4 prontos: Grokbot, Coordenador, Pesquisador e Escritor (na sua voz).
-- **Coordenador**: marque "é coordenador" no bot. Numa conversa com ele, ele decide se responde sozinho ou delega aos outros bots (até 4 tarefas), recebe os resultados e entrega uma resposta final.
-- **+ Grupo**: junte bots. Use `@nome` para chamar um bot. Sem `@`, o coordenador do grupo cuida do pedido, delegando só aos membros do grupo.
-- **Pausar**: bloqueia todas as chamadas ao Claude na hora.
-- **Limpar**: apaga a conversa e a memória do bot naquela conversa.
-
-## Abrir no celular (sem Tailscale)
-1. No `.env`, adicione `WEB_HOST=0.0.0.0` e reinicie `npm.cmd run web`.
-2. O terminal mostra o link para o celular (`http://192.168.x.x:4400/login?t=...`). Celular e computador precisam estar no mesmo Wi-Fi.
-3. O Windows vai perguntar sobre o firewall: permita só em **rede privada**.
-4. Atenção: na rede, o link é HTTP sem criptografia. Use em Wi-Fi de confiança. Quem tiver o token controla seus bots. Para acesso de fora de casa com segurança, o caminho é uma VPN privada como o Tailscale (não configurado aqui).
-5. Para trocar o token, apague `data/web/auth.json` e reinicie.
-
-## Limites e segurança
-- `DAILY_CALL_CAP` (padrão 40): máximo de chamadas ao Claude por dia. Cada resposta de bot conta 1; um pedido ao coordenador com 2 delegações custa 4. Aumente com cuidado: **tudo isso sai do limite da sua assinatura**.
-- `MESSAGE_CALL_CAP` (padrão 8): máximo de chamadas por mensagem sua.
-- `CLAUDE_CONCURRENCY` (padrão 2): chamadas ao mesmo tempo.
-- Os bots só têm ferramentas de leitura e web, em modo `dontAsk`. Não escrevem, não apagam, não rodam comandos e ignoram seus servidores MCP.
-- Resultados de um bot entram no coordenador marcados como dados, não instruções.
-- Dados ficam em `data/web` (bots, conversas, uso). Está no `.gitignore`. Se a pasta estiver no OneDrive, as conversas vão para a nuvem.
-- Teste automático: `node test/web-e2e.mjs`.
-
-
-## Abrir sem terminal e iniciar com o Windows
-Dê dois cliques nos arquivos da pasta `grokbot` (não precisa de PowerShell):
-- `instalar-autostart.bat`: liga a central agora e toda vez que o Windows iniciar, em segundo plano e sem janela. Depois abre o navegador já logado.
-- `abrir-central.bat`: abre a central no navegador (útil se você fechou a aba).
-- `parar-central.bat`: para a central.
-- `remover-autostart.bat`: desfaz o início automático.
-O log fica em `data/web/server.log` (ele contém o link com token, então não compartilhe esse arquivo).
-Se você mudar `WEB_PORT`, o `abrir-central.bat` ainda abre a porta 4400: abra o endereço novo na mão.
-
-## Instalar como app (ícone próprio)
-No computador (Chrome ou Edge), abra `http://localhost:4400` e use o ícone de instalar na barra de endereço (ou menu, "Instalar Central de Bots").
-No celular, o navegador só instala como app em **HTTPS**. Pelo endereço `http://192.168...` você consegue só um atalho. Com HTTPS (por exemplo via Tailscale) ele instala de verdade.
-
-
-## Acesso de qualquer lugar com Tailscale (recomendado)
-Com o Tailscale a central continua só em `localhost` (não use `WEB_HOST=0.0.0.0`) e o Tailscale entrega um endereço HTTPS privado, visível apenas nos seus aparelhos. O app instala no celular e o token continua obrigatório.
-1. Instale o Tailscale no PC e no celular (tailscale.com/download) e entre na **mesma conta** nos dois.
-2. Dê dois cliques em `ligar-tailscale.bat`. Ele roda `tailscale serve --bg --https=4400 localhost:4400` e mostra o endereço `https://NOME-DO-PC.xxxx.ts.net:4400`.
-   Se ele avisar que o HTTPS não está habilitado, abra o link que ele mostra (ou o painel admin do Tailscale, em DNS) e habilite.
-3. No celular, com o Tailscale ligado, abra `https://NOME-DO-PC.xxxx.ts.net:4400/login?t=SEU_TOKEN` (o token está em `data/web/auth.json`). Depois use "Instalar app" ou "Adicionar à tela inicial".
-4. `desligar-tailscale.bat` remove a publicação.
-O computador precisa estar ligado, com a central rodando e o Tailscale conectado.
-
-## Painel de atividade e Rotinas
-
-- **Painel à direita ("Tela de <bot>")**: mostra ao vivo o que o bot está fazendo (pesquisando na web, abrindo uma página, lendo um arquivo, delegando a outro bot, tempo de cada etapa). Em grupo e no Coordenador, aparecem também os bots que receberam tarefas. O histórico do painel fica só na memória (zera ao reiniciar a Central).
-- **Rotinas**: tarefas agendadas por bot (ex.: "dias úteis às 08:15, resuma as notícias de IA"). Ficam em `data/web/routines.json`. Rodam sozinhas com a Central ligada; se o PC estava desligado na hora, rodam ao ligar, até 3 horas depois. Cada execução gasta ao menos 1 chamada do limite diário e respeita a pausa. O resultado chega no chat do bot. Máximo de 12 rotinas.
-- A atividade usa o modo de streaming do Claude Code (`--output-format stream-json --verbose`). Se a sua versão não aceitar, a Central cai sozinha para o modo antigo (as respostas continuam funcionando, só some o detalhe do painel).
-- Backups do visual e do servidor anteriores: `web/public/index.antigo.html` e `web/server.antigo.mjs`.
-
-## Capacidades avançadas (também em: menu do perfil > Capacidades)
-
-Tudo é configurado em **Editar bot** (abas Geral, Conhecimento, Skills, Fluxo e controle). Depois de atualizar arquivos do servidor, reinicie a Central (`parar-central.bat` e `instalar-autostart.bat`) e use Ctrl+F5.
-
-| Recurso | Como ativar | Como desativar |
-| --- | --- | --- |
-| Anexos (imagem, vídeo, áudio, PDF, texto, planilha) | Clipe no chat, arrastar ou colar. Máx. 1 GB (`UPLOAD_MAX_MB` no `.env`) | Remover o anexo antes de enviar |
-| Skills por bot | Aba Skills: enviar `.zip` (com `SKILL.md` na pasta principal) ou colar o `SKILL.md` | Remover na aba Skills |
-| Biblioteca de skills | Botão "Biblioteca" na skill; no outro bot, "Usar da biblioteca" | Apagar da biblioteca |
-| Modo avançado | Aba Fluxo e controle: liga criação de arquivos e programas liberados (padrão `ffmpeg`, `ffprobe`) | Desmarcar. `bash`, `curl`, `rm` e similares são sempre bloqueados |
-| Base de conhecimento | Aba Conhecimento: até 30 arquivos de 50 MB | Remover o arquivo |
-| Memória | No chat: `/lembrar texto` (apagar: `/esquecer`) | Limpar o campo |
-| Exemplos e checklist | Aba Conhecimento | Deixar vazio |
-| Idioma, tom e modelo automático | Aba Geral | Modelo fixo; idioma vazio |
-| Fluxo e revisor | Aba Fluxo e controle (até 3 bots em sequência) | Desmarcar; "Sem revisor" |
-| Pedir aprovação | Aba Fluxo e controle (instrução ao bot, não bloqueio técnico) | Desmarcar |
-| Composio por bot | Exige `COMPOSIO_MCP_URL` no `.env`; liga/desliga por bot | Desmarcar, ou apagar a URL do `.env` |
-| Limite por bot | Aba Fluxo e controle (0 = sem limite) | Colocar 0 |
-| Pasta vigiada | Caminho completo da pasta (checa a cada 10 s; `WATCH_TICK_MS` muda o intervalo) | Apagar o caminho |
-| Duplicar, exportar, importar | Editar bot (Duplicar/Exportar); menu "+" > Importar bot | n/a |
-| Notificações | O navegador pede permissão ao enviar a primeira mensagem | Bloquear no navegador |
-
-### Editor de Vídeo
-
-1. `winget install ffmpeg`, feche e abra o PowerShell e confira com `ffmpeg -version`.
-2. Reinicie a Central.
-3. Novo bot > sugestão "Editor de Vídeo" > Criar. Na janela que reabre, aba Skills: envie o `.zip` da skill.
-4. No chat do bot, anexe o vídeo e peça a edição. O resultado volta no chat.
-
-### Cuidados
-
-- Arquivos enviados e gerados ficam em `data/web/files`; prefira manter `data` fora do OneDrive.
-- Os arquivos somem ao excluir a conversa, limpar o histórico ou excluir o bot (anexos não enviados, em 24 h).
-- Ligue o modo avançado só nos bots que precisam.
-- Skills que dependem da nuvem (ex.: salvar no Google Drive) não rodam sozinhas no bot local.
+## Apêndice: bot de Telegram (opcional, antigo)
+O projeto também inclui um bot de Telegram simples que usa o mesmo Claude Code. A Central **não depende dele**.
+1. Crie o bot com @BotFather (`/newbot`) e copie o token para `TELEGRAM_BOT_TOKEN` no `.env`.
+2. Rode `npm start`, mande "oi" ao bot e veja no terminal `Mensagem ignorada do ID 123456789`. Coloque esse número em `ALLOWED_USER_ID` e reinicie.
+3. Ele só responde ao seu ID e só tem ferramentas de leitura e web (`ALLOWED_TOOLS`). Não libere `Bash`, `Write` ou `Edit` sem entender o risco. O jeito dele falar fica em `workdir/CLAUDE.md`.
