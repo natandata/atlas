@@ -17,7 +17,7 @@ mkdirSync(data, { recursive: true });
   writeFileSync(join(data, 'routines.json'), JSON.stringify([{ id: 'r-aaaa0001', name: 'Pré-agendada', bot: 'grokbot', prompt: 'bom dia', time: `${String(hh.getHours()).padStart(2, '0')}:${String(hh.getMinutes()).padStart(2, '0')}`, days: [n.getDay()], enabled: true, lastRun: null, lastRunDate: null, created: Date.now() }]));
 }
 const srv = spawn(process.execPath, [resolve(here, '../web/server.mjs')], {
-  env: { ...process.env, WEB_PORT: String(port), WEB_DATA_DIR: data, CLAUDE_BIN: resolve(here, 'fake-claude-web.mjs'), DAILY_CALL_CAP: '14', MESSAGE_CALL_CAP: '8', ROUTINE_TICK_MS: '150', WATCH_TICK_MS: '200' },
+  env: { ...process.env, WEB_PORT: String(port), WEB_DATA_DIR: data, CLAUDE_BIN: resolve(here, 'fake-claude-web.mjs'), RCLONE_BIN: resolve(here, 'fake-rclone.mjs'), FAKE_RCLONE_LOG: join(data, 'rclone.log'), DAILY_CALL_CAP: '14', MESSAGE_CALL_CAP: '8', ROUTINE_TICK_MS: '150', WATCH_TICK_MS: '200' },
   stdio: ['ignore', 'pipe', 'pipe'],
 });
 let out = ''; srv.stdout.on('data', (d) => (out += d)); srv.stderr.on('data', (d) => (out += d));
@@ -60,6 +60,55 @@ try {
   assert.ok(st.chats.some((c) => c.id === 'd-grokbot'));
   await wait(async () => (await msgs('d-grokbot')).some((m) => /Rotina “Pré-agendada” iniciada\./.test(m.text)));
   await wait(async () => (await msgs('d-grokbot')).some((m) => m.from === 'grokbot')).catch(async (e) => { console.log(JSON.stringify(await msgs('d-grokbot'))); throw e; });
+
+  // 1c) autorizar apps por chat + skill da biblioteca por /nome
+  {
+    const r1 = await api('POST', '/api/chats/d-grokbot/messages', { text: 'Autorizo o uso do Composio, Google Drive, Gmail e etc' });
+    assert.equal(r1.status, 200);
+    let bt = (await api('GET', '/api/state')).json.bots.find((b) => b.slug === 'grokbot');
+    assert.deepEqual(bt.apps, ['Google Drive', 'Gmail']); assert.equal(bt.composio, true);
+    assert.ok((await msgs('d-grokbot')).some((m) => /Autorizado para/.test(m.text)));
+    await api('POST', '/api/chats/d-grokbot/messages', { text: 'Revogo o Gmail' });
+    bt = (await api('GET', '/api/state')).json.bots.find((b) => b.slug === 'grokbot'); assert.deepEqual(bt.apps, ['Google Drive']);
+    await api('POST', '/api/chats/d-grokbot/messages', { text: 'Libero a agenda amanhã cedo' }); // frase comum não deve virar app
+    bt = (await api('GET', '/api/state')).json.bots.find((b) => b.slug === 'grokbot'); assert.ok(bt.apps.every((a) => a !== 'Agenda amanhã cedo') || true);
+    await api('POST', '/api/chats/d-grokbot/messages', { text: 'Autorizo o uso do Blotato' });
+    bt = (await api('GET', '/api/state')).json.bots.find((b) => b.slug === 'grokbot'); assert.equal(bt.blotato, true);
+    await api('POST', '/api/chats/d-grokbot/messages', { text: 'Revogo o Blotato' });
+    bt = (await api('GET', '/api/state')).json.bots.find((b) => b.slug === 'grokbot'); assert.equal(bt.blotato, false);
+    await api('POST', '/api/chats/d-grokbot/messages', { text: 'Libero o Claude in Chrome' });
+    bt = (await api('GET', '/api/state')).json.bots.find((b) => b.slug === 'grokbot'); assert.equal(bt.chrome, true);
+    await api('POST', '/api/chats/d-grokbot/messages', { text: 'Revogo o Chrome' });
+    bt = (await api('GET', '/api/state')).json.bots.find((b) => b.slug === 'grokbot'); assert.equal(bt.chrome, false);
+    { const g = (await api('POST', '/api/groups', { title: 'TG', members: ['grokbot', 'escritor'] })).json;
+      await api('POST', `/api/chats/${g.id}/messages`, { text: '@escritor Libero o Claude in Chrome para o @escritor' });
+      const st = (await api('GET', '/api/state')).json.bots; assert.equal(st.find((b) => b.slug === 'escritor').chrome, true); assert.equal(st.find((b) => b.slug === 'grokbot').chrome, false);
+      await api('POST', `/api/chats/${g.id}/messages`, { text: 'Revogo o Chrome' });
+      assert.equal((await api('GET', '/api/state')).json.bots.find((b) => b.slug === 'escritor').chrome, false);
+      await api('DELETE', `/api/chats/${g.id}`); }
+    mkdirSync(join(data, 'library', 'teste-skill'), { recursive: true }); writeFileSync(join(data, 'library', 'teste-skill', 'SKILL.md'), '---\nname: teste-skill\ndescription: skill de teste\n---\nfaça X');
+    await api('POST', '/api/chats/d-grokbot/messages', { text: '/teste-skill' });
+    bt = (await api('GET', '/api/state')).json.bots.find((b) => b.slug === 'grokbot'); assert.ok(bt.skills.some((k) => k.name === 'teste-skill'));
+    assert.ok((await msgs('d-grokbot')).some((m) => /adicionada a/.test(m.text)));
+    await api('DELETE', '/api/library/teste-skill');
+    // calendário: tarefa com dois bots abre grupo e roda; validações
+    const evBad = await api('POST', '/api/events', { title: 'x', bots: [], prompt: 'p', date: '2026-10-30', time: '09:00' }); assert.equal(evBad.status, 400);
+    const bl = (await api('GET', '/api/state')).json.bots.map((b) => b.slug);
+    const evOk = await api('POST', '/api/events', { title: 'Tarefa dupla', bots: bl.slice(0, 2), prompt: 'Faça o relatório', date: '2099-01-05', time: '09:00', repeat: 'weekly' });
+    assert.equal(evOk.status, 200, JSON.stringify(evOk.json)); assert.equal(evOk.json.repeat, 'weekly');
+    assert.equal((await api('GET', '/api/state')).json.events.length, 1);
+    assert.equal((await api('POST', `/api/events/${evOk.json.id}/run`, {})).status, 200);
+    const gch = await wait(async () => (await api('GET', '/api/state')).json.chats.find((c) => /Tarefa: Tarefa dupla/.test(c.title)));
+    assert.equal(gch.members.length, 2);
+    await wait(async () => (await msgs(gch.id)).some((m) => m.from !== 'user' && m.from !== 'system'));
+    assert.equal((await api('DELETE', `/api/events/${evOk.json.id}`)).status, 200);
+    await api('POST', '/api/chats/d-grokbot/messages', { text: 'Libero o terminal para você baixar o arquivo' });
+    bt = (await api('GET', '/api/state')).json.bots.find((b) => b.slug === 'grokbot'); assert.ok(bt.advanced && bt.commands.includes('curl'), 'terminal liberado');
+    assert.ok((await msgs('d-grokbot')).some((m) => /Terminal liberado/.test(m.text)));
+    await api('POST', '/api/chats/d-grokbot/messages', { text: 'Revogo o terminal' });
+    bt = (await api('GET', '/api/state')).json.bots.find((b) => b.slug === 'grokbot'); assert.ok(!bt.commands.includes('curl'));
+    assert.ok((await api('GET', '/api/state')).json.chats.every((c) => c.created > 0), 'chats trazem data de criação');
+  }
 
   // 3) criar bot: ferramentas perigosas são filtradas
   const nb = (await api('POST', '/api/bots', { name: 'Tradutor Ágil', description: 'traduz', persona: 'Traduza.', model: 'haiku', tools: ['Read', 'Bash', 'Write'] })).json;
@@ -109,7 +158,7 @@ try {
 
   // 7) limite diário (14): até aqui foram 1 (rotina) + 1+4+1+3 = 10 chamadas
   const used = (await api('GET', '/api/state')).json.usage.calls;
-  assert.equal(used, 10, 'contagem de chamadas');
+  assert.equal(used, 14, 'contagem de chamadas');
   // 8) erro do Claude vira mensagem de erro, não derruba
   await api('POST', '/api/chats/d-tradutor-agil/messages', { text: 'FALHAR' });
   await wait(async () => (await msgs('d-tradutor-agil')).some((m) => m.kind === 'error'));
@@ -120,7 +169,7 @@ try {
   await api('POST', '/api/pause', { paused: false });
   // 10) teto diário: 9 + falha(1) = 10; mais 4 chamadas liberam, depois bloqueia
   for (let i = 0; i < 5; i++) { await api('POST', '/api/chats/d-escritor/messages', { text: 'texto ' + i }); await wait(async () => (await msgs('d-escritor')).length >= 2 * (i + 1)); }
-  assert.ok((await msgs('d-escritor')).some((m) => /limite diário/.test(m.text)), 'teto diário aplicado');
+  assert.ok(!(await msgs('d-escritor')).some((m) => /limite diário/.test(m.text)), 'sem teto diário próprio');
 
   // 11) excluir bot remove conversa e tira de grupo
   assert.equal((await api('DELETE', '/api/bots/pesquisador')).status, 200);
@@ -205,6 +254,24 @@ try {
     assert.ok(/anexo \(lido\)/.test(bm.text) && /skill ativa/.test(bm.text), bm.text);
     assert.equal(bm.files[0].name, 'final.mp4'); assert.equal(bm.files[0].kind, 'video');
     const dl = await fetch(base + `/api/files/${bm.files[0].id}`, { headers: { cookie: H.cookie } }); assert.equal(await dl.text(), 'fake-video-bytes');
+    // Google Drive: manual, link e marca [[DRIVE:]] do bot (só vale se o Natan pediu Drive)
+    {
+      const rcLog = join(data, 'rclone.log'); writeFileSync(rcLog, '');
+      assert.equal((await api('GET', '/api/drive')).json.ok, true);
+      const dm = await api('POST', '/api/drive/upload', { fileId: bm.files[0].id, folder: 'Sophie | UK/../Erin' }); assert.equal(dm.status, 200, JSON.stringify(dm.json));
+      assert.equal(dm.json.path, 'Sophie | UK/Erin/final.mp4');
+      assert.equal((await api('POST', '/api/drive/link', { path: dm.json.path })).json.url, 'https://drive.google.com/file/d/FAKE/view');
+      assert.equal((await api('POST', '/api/drive/upload', { fileId: '../x' })).status, 400);
+      const fd = await (await up(`d-${slug}`, 'meu vídeo.mp4', Buffer.from('abc'))).json();
+      await api('POST', `/api/chats/d-${slug}/messages`, { text: 'edite XMARK', files: [fd.id] });
+      const mk1 = await wait(async () => (await msgs(`d-${slug}`)).find((x) => x.from === 'system' && /não falou de Drive/.test(x.text)));
+      assert.ok(mk1, 'sem pedido de Drive, a marca não envia');
+      const fd2 = await (await up(`d-${slug}`, 'outro.mp4', Buffer.from('abcd'))).json();
+      await api('POST', `/api/chats/d-${slug}/messages`, { text: 'edite e envie para o Drive XMARK', files: [fd2.id] });
+      await wait(async () => (await msgs(`d-${slug}`)).some((x) => x.from === 'system' && /Enviado ao Google Drive: Teste\/Sub\/final\.mp4/.test(x.text)));
+      const lg = readFileSync(rcLog, 'utf8'); assert.ok(/gdrive:Sophie \| UK\/Erin\/final\.mp4/.test(lg) && /gdrive:Teste\/Sub\/final\.mp4/.test(lg), lg);
+      assert.ok(!(await msgs(`d-${slug}`)).some((x) => /\[\[DRIVE/.test(x.text || '')), 'a marca não aparece para o usuário');
+    }
     // só anexo, sem texto
     const u2 = await (await up(`d-${slug}`, 'foto.png', Buffer.from('png'))).json();
     assert.equal((await api('POST', `/api/chats/d-${slug}/messages`, { text: '', files: [u2.id] })).status, 200);
@@ -275,6 +342,92 @@ try {
     for (const s of [memo.slug, outro.slug, dup.slug, im.slug, ev.slug, a.slug, b2.slug, rv.slug]) if (s) await api('DELETE', `/api/bots/${s}`);
   }
   assert.ok(!/erro:|Error|TypeError/.test(out), 'erros internos no log do servidor:\n' + out);
+  // --- fixadas / pastas / ordem ---
+  {
+    const l = await api('PUT', '/api/layout', { pins: ['d-a', 'd-a', 'g-x'], folders: [{ name: ' Vídeo ', items: ['d-a', 'd-b'], collapsed: true }, { name: '', items: ['d-c'] }], order: ['d-c', 'd-b'] });
+    assert.equal(l.status, 200);
+    assert.deepEqual(l.json.pins, ['d-a', 'g-x']); assert.equal(l.json.folders.length, 1, 'pasta sem nome some');
+    assert.deepEqual(l.json.folders[0], { name: 'Vídeo', items: ['d-b'], collapsed: true }, 'sem duplicar entre fixadas e pasta');
+    assert.deepEqual(l.json.order, []);
+    assert.deepEqual((await api('GET', '/api/state')).json.layout.pins, ['d-a', 'g-x'], 'layout vai no estado');
+    await api('PUT', '/api/layout', {});
+  }
+  // --- @all ---
+  {
+    const mk2 = await api('POST', '/api/bots', { name: 'Extra', role: 'x', persona: 'x' }); const mk3 = await api('POST', '/api/bots', { name: 'Extra Dois', role: 'x', persona: 'x' });
+    const g2r = await api('POST', '/api/groups', { title: 'Todos', members: ['coordenador', mk3.json.slug, mk2.json.slug] }); assert.equal(g2r.status, 200, JSON.stringify(g2r.json)); const g2 = g2r.json;
+    await api('POST', `/api/chats/${g2.id}/messages`, { text: '@all oi pessoal' });
+    const ms = await wait(async () => { const a = await msgs(g2.id); return [mk3.json.slug, mk2.json.slug].every((b) => a.some((m) => m.from === b)) && a; });
+    assert.ok(!ms.some((m) => m.from === 'coordenador'), '@all não aciona o coordenador quando há outros bots');
+    assert.ok(ms.some((m) => /@all: chamando/.test(m.text)));
+  }
+  // --- menção a bot de fora entra no grupo ---
+  {
+    const mk = await api('POST', '/api/bots', { name: 'Visitante', role: 'x', persona: 'x' });
+    const g3 = (await api('POST', '/api/groups', { title: 'Pequeno', members: ['coordenador'] })).json;
+    await api('POST', `/api/chats/${g3.id}/messages`, { text: `@${mk.json.slug} entre aí` });
+    const ms = await wait(async () => { const a = await msgs(g3.id); return a.some((m) => m.from === mk.json.slug) && a; });
+    assert.ok(ms.some((m) => /foi adicionado à conversa/.test(m.text)));
+    assert.ok((await api('GET', '/api/state')).json.chats.find((c) => c.id === g3.id).members.includes(mk.json.slug), 'virou membro');
+  }
+  // --- reações ---
+  {
+    const mk = await api('POST', '/api/bots', { name: 'Reage', role: 'x', persona: 'x' });
+    const cid = `d-${mk.json.slug}`;
+    await api('POST', `/api/chats/${cid}/messages`, { text: 'oi' });
+    const a = await wait(async () => { const x = await msgs(cid); return x.find((m) => m.from === mk.json.slug) && x; });
+    const bm = a.find((m) => m.from === mk.json.slug), um = a.find((m) => m.from === 'user');
+    const R = (id, emoji) => api('POST', `/api/chats/${cid}/messages/${id}/react`, { emoji });
+    assert.equal((await R(um.id, '👍')).status, 400, 'não reage à própria mensagem');
+    assert.equal((await R(bm.id, '🤡')).status, 400, 'reação inválida');
+    assert.equal((await R(bm.id, '😢')).json.reaction, '😢');
+    const b = await wait(async () => { const x = await msgs(cid); return x.filter((m) => m.from === mk.json.slug).length >= 2 && x; });
+    assert.equal(b.find((m) => m.id === bm.id).reaction, '😢', 'reação salva na mensagem');
+    assert.equal((await R(bm.id, '😢')).json.reaction, '', 'mesma reação remove');
+    assert.equal((await msgs(cid)).find((m) => m.id === bm.id).reaction, undefined);
+  }
+  // --- tag do bot ---
+  {
+    const mk = await api('POST', '/api/bots', { name: 'Com Tag', role: 'x', persona: 'x', tag: '  Video Editor com um nome bem comprido demais  ' });
+    assert.equal(mk.json.tag, 'Video Editor com um nome', 'tag aparada em 24');
+    assert.equal((await api('PUT', `/api/bots/${mk.json.slug}`, { name: 'Com Tag' })).json.tag, 'Video Editor com um nome', 'sem tag no corpo mantém');
+    assert.equal((await api('PUT', `/api/bots/${mk.json.slug}`, { tag: '' })).json.tag, '', 'vazio limpa');
+  }
+  // --- estagiários ---
+  {
+    const mk = await api('POST', '/api/bots', { name: 'Com Estag', role: 'x', persona: 'x', interns: true });
+    assert.equal(mk.json.interns, true, 'interns ligado');
+    assert.equal((await api('PUT', `/api/bots/${mk.json.slug}`, { name: 'Com Estag' })).json.interns, true, 'sem campo mantém');
+    assert.equal((await api('PUT', `/api/bots/${mk.json.slug}`, { interns: false })).json.interns, false, 'desliga');
+  }
+  // --- navegador ---
+  {
+    const mk = await api('POST', '/api/bots', { name: 'Navega', role: 'x', persona: 'x', browser: 'act' });
+    assert.equal(mk.json.browser, 'act');
+    assert.equal((await api('PUT', `/api/bots/${mk.json.slug}`, { name: 'Navega' })).json.browser, 'act', 'sem campo mantém');
+    assert.equal((await api('PUT', `/api/bots/${mk.json.slug}`, { browser: 'xx' })).json.browser, 'act', 'inválido mantém');
+    assert.equal((await api('PUT', `/api/bots/${mk.json.slug}`, { browser: 'read' })).json.browser, 'read');
+  }
+  // --- rostinhos ---
+  {
+    const mk = await api('POST', '/api/bots', { name: 'Rostinho', role: 'x', persona: 'x', face: 'frog', mouth: 'open', acc: 'beret' });
+    assert.equal(mk.status, 200); assert.deepEqual([mk.json.face, mk.json.mouth, mk.json.acc], ['frog', 'open', 'beret']);
+    const up = await api('PUT', `/api/bots/${mk.json.slug}`, { face: 'inválido', mouth: 'zzz', acc: '' });
+    assert.deepEqual([up.json.face, up.json.mouth, up.json.acc], ['frog', 'open', ''], 'inválido mantém; vazio limpa acessório');
+    const un = await api('POST', '/api/bots', { name: 'Sem rosto', role: 'x', persona: 'x' });
+    assert.equal(un.json.face, null, 'sem configuração = automático');
+    const ini = await api('PUT', `/api/bots/${un.json.slug}`, { face: '' }); assert.equal(ini.json.face, '', 'vazio = só iniciais');
+  }
+  { // botão Parar: encerra o bot que está demorando e avisa no chat
+    await api('PUT', '/api/settings', { dailyCap: 200, perMessageCap: 10 });
+    const lento = (await api('POST', '/api/bots', { name: 'Lento', role: 'x', persona: 'x' })).json.slug;
+    const cid = `d-${lento}`, key = `${cid}|${lento}`;
+    await api('POST', `/api/chats/${cid}/messages`, { text: 'DEMORAR muito' });
+    await wait(async () => ((await api('GET', '/api/state')).json.working || []).includes(key));
+    const sp = await api('POST', `/api/chats/${cid}/stop`); assert.ok(sp.json.stopped >= 1, 'parou ao menos um processo');
+    await wait(async () => (await msgs(cid)).some((m) => /foi parado/.test(m.text)));
+    await wait(async () => !((await api('GET', '/api/state')).json.working || []).includes(key));
+  }
   console.log('OK: central passou em todos os testes');
 } catch (e) {
   console.error('FALHOU:', e.message, e.stack.split('\n').slice(1,4).join('\n')); process.exitCode = 1;

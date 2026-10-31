@@ -1,6 +1,6 @@
 {
-  "name": "Central de Bots",
-  "short_name": "Bots",
+  "name": "Atlas",
+  "short_name": "Atlas",
   "description": "Seus bots do Claude em um só lugar",
   "start_url": "/",
   "scope": "/",

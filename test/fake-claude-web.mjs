@@ -19,13 +19,15 @@ process.stdin.on('end', () => {
   let result;
   if (input.includes('Resultados dos bots')) result = `FINAL(${(input.match(/^### @/gm) || []).length})`;
   else if (input.includes('Você é o coordenador')) result = 'Vou delegar.\n@pesquisador: buscar dados\n@escritor: redigir texto';
+  else if (input.includes('DEMORAR')) { setTimeout(() => emit('demorou'), 30000); return; }
   else if (input.includes('FALHAR')) { emit('falha simulada', true); process.exit(1); }
   else if (input.includes('ECO-NOTAS')) { const mi = process.argv.indexOf('--model'); result = `model=${mi > 0 ? process.argv[mi + 1] : 'padrao'}\n${input}`; }
-  else if (input.includes('Pasta de saída')) {
+  else if (input.includes('Pasta de saída') && /\((video|image|audio|file),/.test(input)) {
     const dir = /Pasta de saída[^:]*: (.+)/.exec(input)[1].trim();
     writeFileSync(join(dir, 'final.mp4'), 'fake-video-bytes');
     const att = /\n- (.+?) \((video|image|audio|file),/.exec(input);
     result = `Editei ${att ? 'o anexo (' + (existsSync(att[1]) ? 'lido' : 'sumiu') + ')' : 'sem anexo'}; skill ${input.includes('Skills instaladas') ? 'ativa' : 'nenhuma'}.`;
   } else result = `**${bot}** respondeu`;
+  if (input.includes('XMARK')) result += ' [[DRIVE: Teste/Sub]]';
   emit(result);
 });
