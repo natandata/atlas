@@ -212,8 +212,8 @@ svg{display:block}
 .media audio{max-width:100%}
 .fl{display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:12px;background:rgba(127,127,127,.15);color:inherit;text-decoration:none;font-size:13.5px}
 .fl small{opacity:.65}
-.dlk{font-size:12px;opacity:.7;color:inherit}
-.dbtn{background:none;border:0;padding:0;text-align:left;text-decoration:underline;cursor:pointer;font:inherit;font-size:12px}.dbtn:disabled{opacity:.5;cursor:default}
+.dlk{font-size:12px;opacity:.7;color:inherit;text-decoration:none}.dlk:hover{text-decoration:underline}
+.dbtn{background:none;border:0;padding:0;text-align:left;text-decoration:none;cursor:pointer;font:inherit;font-size:12px}.dbtn:disabled{opacity:.5;cursor:default}
 #chips{max-width:820px;margin:0 auto 6px;display:flex;flex-wrap:wrap;gap:6px}
 #chips:empty{display:none}
 .chip{display:flex;align-items:center;gap:6px;max-width:260px;padding:5px 6px 5px 10px;border-radius:999px;background:var(--card);border:1px solid var(--line);font-size:12.5px}
@@ -242,6 +242,13 @@ svg{display:block}
 .cbox textarea{flex:1;resize:none;border:0;background:transparent;outline:0;max-height:160px;min-height:26px;line-height:1.45;padding:6px 4px}
 .cplus{width:36px;height:36px;border-radius:50%;background:var(--hover);display:grid;place-items:center;color:var(--muted);flex:none}
 .cplus:hover{color:var(--text)}
+.cplus.rec{background:#e5484d;color:#fff;width:auto;padding:0 12px;gap:6px;border-radius:18px;animation:micp 1.2s infinite}
+.cplus.rec::after{content:attr(data-t);font-size:12.5px;font-variant-numeric:tabular-nums}
+@keyframes micp{50%{opacity:.7}}
+.cmodel{flex:none;max-width:125px;height:32px;border:0;border-radius:16px;background:var(--hover);color:var(--muted);font:inherit;font-size:12.5px;padding:0 8px;cursor:pointer}
+.cmodel:hover{color:var(--text)}
+.cmodel.free{color:#168a45}
+@media(max-width:600px){.cmodel{max-width:92px}}
 .send{width:36px;height:36px;border-radius:50%;background:var(--me-bg);color:var(--me-fg);display:grid;place-items:center;flex:none}
 
 /* ---- painel direito ---- */
@@ -523,7 +530,7 @@ html[data-skin="wa"] .msg.me{border-bottom-right-radius:8px}
 html[data-skin="wa"] .msg:not(.me):not(.cont):not(.sys):not(.error):not(.delegation){border-top-left-radius:0}
 html[data-skin="wa"] .msg.me:not(.cont){border-top-right-radius:0}
 html[data-skin="wa"] .msg:not(.cont):not(.sys):not(.error):not(.delegation)::before{content:"";position:absolute;top:0;left:-7px;width:8px;height:13px;background:var(--bub);clip-path:polygon(100% 0,0 0,100% 100%)}
-html[data-skin="wa"] .msg.me:not(.cont)::before{left:auto;right:-7px;background:var(--me-bg);clip-path:polygon(0 0,100% 0,0 100%)}
+html[data-skin="wa"] .msg.me:not(.cont):not(.sys):not(.error):not(.delegation)::before{left:auto;right:-7px;background:var(--me-bg);clip-path:polygon(0 0,100% 0,0 100%)}
 html[data-skin="wa"] .msg.sys,html[data-skin="wa"] .msg.error{background:var(--wa-pill);padding:5px 12px;margin:8px 0}
 html[data-skin="wa"] .msg .ts{font-size:11px;opacity:.6;text-align:right;margin-top:1px}
 html[data-skin="wa"] .media img,html[data-skin="wa"] .media video{border-radius:6px;max-width:min(100%,330px)}
@@ -586,6 +593,8 @@ html[data-skin="wa"] #main>.empty{background:var(--wa-head)}
         <div class="cbox">
           <button class="cplus" id="clip" title="Anexar imagem, vídeo ou arquivo" aria-label="Anexar"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.5l-8.5 8.5a5.5 5.5 0 01-7.8-7.8l9-9a3.7 3.7 0 015.2 5.2l-9 9a1.8 1.8 0 01-2.6-2.6l8.3-8.3"/></svg></button>
           <button class="cplus" id="cplus" data-menu title="Menções e rotinas" aria-label="Mais"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></button>
+          <select id="cmodel" class="cmodel" title="Modelo desta conversa" aria-label="Modelo desta conversa"><option value="">Modelo: padrão</option><option value="auto">Automático</option><option value="haiku">Haiku</option><option value="sonnet">Sonnet</option><option value="opus">Opus</option><option value="ollama">Gratuito</option></select>
+          <button class="cplus" id="mic" type="button" title="Gravar áudio" aria-label="Gravar áudio"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg></button>
           <textarea id="in" rows="1" placeholder="Mensagem" aria-label="Mensagem"></textarea>
           <button class="send" id="sendBtn" aria-label="Enviar"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg></button>
         </div>
@@ -629,7 +638,7 @@ html[data-skin="wa"] #main>.empty{background:var(--wa-head)}
     <label class="f">Para que serve (os outros bots leem isso)<input type="text" id="bDesc" maxlength="200"></label>
     <label class="f">Personalidade e regras (instruções do bot)<textarea class="fld" id="bPersona" rows="6" maxlength="8000"></textarea></label>
     <label class="f">Modelo
-      <select id="bModel"><option value="auto">Automático (Haiku nas tarefas leves, Sonnet nas demais)</option><option value="haiku">Haiku (mais leve, gasta menos)</option><option value="sonnet">Sonnet (equilibrado)</option><option value="opus">Opus (gasta mais do seu limite)</option></select>
+      <select id="bModel"><option value="auto">Automático (Haiku nas tarefas leves, Sonnet nas demais)</option><option value="haiku">Haiku (mais leve, gasta menos)</option><option value="sonnet">Sonnet (equilibrado)</option><option value="opus">Opus (gasta mais do seu limite)</option><option value="ollama">Gratuito (Ollama, só conversa, sem ferramentas)</option></select>
     </label>
     <label class="f">Idioma e tom das respostas<input type="text" id="bLang" maxlength="60" placeholder="ex.: português do Brasil, informal"></label>
     <div class="f">Ferramentas (somente leitura e web)<div class="checks" id="bTools"></div></div>
@@ -740,6 +749,24 @@ html[data-skin="wa"] #main>.empty{background:var(--wa-head)}
 </dialog>
 
 <dialog id="shotDlg" style="width:min(96vw,1400px);background:#000;border-color:#222"><div style="position:relative"><div id="shotWho" style="display:flex;align-items:center;gap:10px;padding:12px 56px 10px 16px;color:#fff;font-size:20px;font-weight:700"></div><button type="button" id="shotX" aria-label="Fechar" title="Fechar" style="position:absolute;top:8px;right:8px;width:36px;height:36px;border:0;border-radius:50%;background:rgba(0,0,0,.6);color:#fff;font-size:18px;cursor:pointer">✕</button><img id="shotBig" alt="Resultado" style="display:block;width:100%;max-height:92dvh;object-fit:contain"></div></dialog>
+<dialog id="trDlg"><form method="dialog" id="trForm">
+  <h2>Transcrição de áudio</h2>
+  <div class="hint">Quando você anexa ou grava um áudio, a Central transcreve antes de entregar ao bot, e o bot responde ao que você falou. O texto aparece no chat para você conferir.</div>
+  <label class="f">Serviço<select id="trProv"></select></label>
+  <label class="f">Chave de API<input id="trKey" type="password" autocomplete="off" placeholder="cole a chave aqui"></label>
+  <label class="f">Idioma do áudio (código, ex.: pt, en; vazio = detectar)<input id="trLang" maxlength="3" placeholder="pt"></label>
+  <div class="hint" id="trSt"></div>
+  <div class="hint">Groq: crie a chave grátis em console.groq.com (API Keys). OpenAI: platform.openai.com. A chave fica só neste computador, na pasta de dados da Central.</div>
+  <div class="actions"><button class="btn" type="button" id="trTest">Testar</button><button class="btn" type="button" id="trCancel">Fechar</button><button class="btn primary" type="submit">Salvar</button></div>
+</form></dialog>
+<dialog id="olDlg"><form method="dialog" id="olForm">
+  <h2>Modelo gratuito (Ollama)</h2>
+  <label class="f">Endereço do Ollama<input id="olUrl" placeholder="http://127.0.0.1:11434"></label>
+  <label class="f">Modelo<select id="olModel"></select></label>
+  <div class="hint" id="olSt"></div>
+  <div class="hint">Para usar: em "Editar bot", escolha o modelo "Gratuito (Ollama)". O bot responde só com texto, sem ferramentas, e não gasta o seu limite do Claude. Para tarefas difíceis, volte o bot para Sonnet/Opus.</div>
+  <div class="actions"><button class="btn" type="button" id="olTest">Testar</button><button class="btn" type="button" id="olCancel">Fechar</button><button class="btn primary" type="submit">Salvar</button></div>
+</form></dialog>
 <dialog id="capDlg"><form method="dialog" id="capForm">
   <h2>Limites de uso</h2>
   <label class="f">Chamadas ao Claude por dia (1 a 1000)<input type="number" id="cDaily" min="1" max="1000" step="1" required></label>
@@ -1073,7 +1100,7 @@ function renderList() {
       armDrag(hd, 'folder', g.i); list.append(hd);
       if (!g.f.collapsed) for (const c of g.items) list.append(mk(c, true));
     }
-    if ((sq.pins.length || sq.folders.length) && sq.rest.length) list.append(h('div', { class: 'grp', style: 'cursor:default' }, h('span', { class: 'gn', text: 'Conversas' })));
+    if ((sq.pins.length || sq.folders.length) && sq.rest.length) list.append(h('div', { class: 'grp', style: 'cursor:default' }, h('span', { class: 'gn', text: 'Chats' })));
     for (const c of sq.rest) list.append(mk(c));
     if (!S.chats.length) list.append(h('div', { class: 'emptylist', text: 'Nada por aqui.' }));
   }
@@ -1407,8 +1434,17 @@ function openGroupInfo() {
 }
 function headClick() { const c = S.chat; if (!c) return; if (c.type === 'group') openGroupInfo(); else if (c.members?.[0]) openBotDialog(c.members[0]); }
 $('havwrap').addEventListener('click', headClick); $('htitle').addEventListener('click', headClick);
+function syncModel() {
+  const c = S.chat, sel = $('cmodel'); if (!sel) return;
+  const sum = c && S.chats.find((x) => x.id === c.id); const v = (sum && sum.model) || c?.model || '';
+  sel.value = v; sel.classList.toggle('free', v === 'ollama');
+}
+$('cmodel').addEventListener('change', async () => {
+  const c = S.chat; if (!c) return; const v = $('cmodel').value;
+  try { await api('PUT', `/api/chats/${c.id}/model`, { model: v }); c.model = v; const sum = S.chats.find((x) => x.id === c.id); if (sum) sum.model = v; syncModel(); } catch (e) { alert(e.message); syncModel(); }
+});
 function renderPanel() {
-  const c = S.chat; renderGroupInfo();
+  const c = S.chat; syncModel(); renderGroupInfo();
   $('ptitle').textContent = !c ? 'Tela' : c.type === 'group' ? 'Atividade do grupo' : `Tela de ${c.title}`;
   $('pcap').textContent = c ? (c.type === 'group' ? 'O que os bots do grupo estão fazendo' : `${c.title} está fazendo isto agora`) : '';
   renderFeed(); renderRoutines(); renderUsage(); if (c) loadShot(c.id); else $('shot').hidden = true;
@@ -1518,6 +1554,7 @@ function connect() {
     } else if (d.type === 'usage') { S.usage = d.usage; S.cap = d.cap; renderUsage(); } else if (d.type === 'plan') { S.plan = d.plan; renderUsage(); }
     else if (d.type === 'paused') { S.paused = d.paused; renderUsage(); renderList(); }
     else if (d.type === 'reset') { const i = S.chats.findIndex((c) => c.id === d.chatId); if (i >= 0) S.chats[i] = d.summary; if (S.cur === d.chatId) { S.chat.messages = []; S.activity = []; renderMsgs(true); renderFeed(); } renderList(); }
+    else if (d.type === 'browser') { try { window.XU?.onBrowser?.(d); } catch { /* painel do navegador indisponível */ } }
     else if (d.type === 'state') loadState();
   };
 }
@@ -1540,7 +1577,7 @@ function showMenu(anchor, items, place = 'below') {
 document.addEventListener('click', (e) => { if (!$('menu').hidden && !e.target.closest('#menu') && !e.target.closest('[data-menu]')) hideMenu(); });
 document.addEventListener('keydown', (e) => { if (e.key === 'Escape') hideMenu(); });
 const newMenu = (anchor) => showMenu(anchor, [
-  { label: 'Novo bot', run: () => openBotDialog(null) }, { label: 'Importar bot (.json)', run: () => $('impFile').click() }, { label: 'Novo grupo', run: openGroupDialog }, { label: 'Nova rotina', run: () => openRoutineDialog(null) }]);
+  { label: 'Novo projeto', run: () => XU.newProject() }, { label: 'Novo bot', run: () => openBotDialog(null) }, { label: 'Importar bot (.json)', run: () => $('impFile').click() }, { label: 'Novo grupo', run: openGroupDialog }, { label: 'Nova rotina', run: () => openRoutineDialog(null) }]);
 $('plusBtn').onclick = (e) => { e.stopPropagation(); newMenu($('plusBtn')); };
 $('waNew').onclick = (e) => { e.stopPropagation(); newMenu($('waNew')); };
 function mainMenu(anchor, place) { showMenu(anchor, [
@@ -1768,6 +1805,51 @@ $('capForm').addEventListener('submit', async (ev) => {
   catch (e) { alert(e.message); }
 });
 $('cCancel').onclick = () => $('capDlg').close();
+function olShow(r) {
+  const sel = $('olModel'); sel.innerHTML = ''; sel.append(new Option('Automático (primeiro instalado)', ''));
+  for (const m of r.models) sel.append(new Option(m, m));
+  if (r.model && !r.models.includes(r.model)) sel.append(new Option(r.model + ' (não instalado)', r.model));
+  sel.value = r.model || ''; $('olUrl').value = r.url;
+  $('olSt').textContent = r.error ? '✗ ' + r.error : r.models.length ? `✓ Conectado. ${r.models.length} modelo(s) instalado(s).` : '✓ Conectado, mas sem modelos. No terminal: ollama pull llama3.2:3b';
+}
+window.openOllama = openOllama;
+async function openOllama() { $('olDlg').showModal(); $('olSt').textContent = 'Verificando…'; try { olShow(await api('GET', '/api/ollama')); } catch (e) { $('olSt').textContent = '✗ ' + e.message; } }
+$('olTest').onclick = async () => { try { olShow(await api('PUT', '/api/ollama', { url: $('olUrl').value, model: $('olModel').value })); } catch (e) { $('olSt').textContent = '✗ ' + e.message; } };
+$('olForm').addEventListener('submit', async (ev) => { ev.preventDefault(); try { const r = await api('PUT', '/api/ollama', { url: $('olUrl').value, model: $('olModel').value }); olShow(r); if (!r.error) $('olDlg').close(); } catch (e) { $('olSt').textContent = '✗ ' + e.message; } });
+$('olCancel').onclick = () => $('olDlg').close();
+function trShow(r) {
+  const sel = $('trProv'); sel.innerHTML = ''; for (const p of r.providers) sel.append(new Option(p.name, p.id)); sel.value = r.provider;
+  $('trLang').value = r.lang || ''; $('trKey').value = ''; $('trKey').placeholder = r.hasKey ? '•••••••• (chave salva; cole outra para trocar)' : 'cole a chave aqui';
+  $('trSt').textContent = r.hasKey ? '✓ Há uma chave salva.' : 'Ainda sem chave: os áudios não serão transcritos.';
+}
+async function openTranscribe() { $('trDlg').showModal(); try { trShow(await api('GET', '/api/transcribe')); } catch (e) { $('trSt').textContent = '✗ ' + e.message; } }
+window.openTranscribe = openTranscribe;
+const trSave = () => api('PUT', '/api/transcribe', { provider: $('trProv').value, key: $('trKey').value, lang: $('trLang').value.trim().toLowerCase() });
+$('trTest').onclick = async () => { try { trShow(await trSave()); $('trSt').textContent = 'Testando…'; await api('POST', '/api/transcribe/test', {}); $('trSt').textContent = '✓ Chave aceita pelo serviço.'; } catch (e) { $('trSt').textContent = '✗ ' + e.message; } };
+$('trForm').addEventListener('submit', async (ev) => { ev.preventDefault(); try { trShow(await trSave()); $('trDlg').close(); } catch (e) { $('trSt').textContent = '✗ ' + e.message; } });
+$('trCancel').onclick = () => $('trDlg').close();
+
+// ---------- gravar áudio e enviar ----------
+const mic = { rec: null, chunks: [], t0: 0, tick: 0, stream: null };
+function micUi(on) { const b = $('mic'); b.classList.toggle('rec', on); b.title = on ? 'Parar e enviar o áudio' : 'Gravar áudio'; b.setAttribute('aria-label', b.title); }
+async function micToggle() {
+  if (mic.rec) { mic.rec.stop(); return; }
+  if (!S.cur) return;
+  if (!navigator.mediaDevices?.getUserMedia || !window.MediaRecorder) { alert('Este navegador não consegue gravar áudio aqui. A gravação precisa de localhost ou de endereço seguro (https).'); return; }
+  try { mic.stream = await navigator.mediaDevices.getUserMedia({ audio: true }); } catch { alert('Sem acesso ao microfone. Libere o microfone para esta página nas permissões do navegador.'); return; }
+  const chat = S.cur; mic.chunks = []; const r = new MediaRecorder(mic.stream); mic.rec = r;
+  r.ondataavailable = (e) => { if (e.data.size) mic.chunks.push(e.data); };
+  r.onstop = async () => {
+    clearInterval(mic.tick); mic.stream?.getTracks().forEach((t) => t.stop()); mic.rec = null; micUi(false); $('mic').dataset.t = '';
+    const blob = new Blob(mic.chunks, { type: 'audio/webm' }); if (blob.size < 1500 || S.cur !== chat) return;
+    const d = new Date(); const nm = `audio-${String(d.getHours()).padStart(2, '0')}${String(d.getMinutes()).padStart(2, '0')}${String(d.getSeconds()).padStart(2, '0')}.weba`;
+    uploadFile(new File([blob], nm, { type: 'audio/webm' }));
+    const f = (S.pend[chat] || []).slice(-1)[0]; const wait = setInterval(() => { if (f.error) { clearInterval(wait); return; } if (f.done) { clearInterval(wait); if (S.cur === chat) send(); } }, 150); // envia sozinho ao terminar o upload
+  };
+  r.start(); mic.t0 = Date.now(); micUi(true);
+  mic.tick = setInterval(() => { const s = Math.floor((Date.now() - mic.t0) / 1000); $('mic').dataset.t = `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`; }, 500);
+}
+$('mic').onclick = micToggle;
 
 
 $('q').oninput = renderList;
@@ -2015,7 +2097,7 @@ const rnd = (a, b) => a + Math.random() * (b - a), pick = (l) => l[Math.floor(Ma
 const walkS = (pts, sp) => ({ k: 'walk', pts: pts.map((p) => [p[0], p[1]]), sp });
 const waitS = (d, o) => ({ k: 'wait', d, ...(o || {}) });
 const doS = (f) => ({ k: 'do', f });
-const leave = doS((a) => { a.atSeat = false; });
+const leave = doS((a) => { a.atSeat = false; a.v = 0; });
 function legFrom(a, pt, node, fin) {
   const pts = []; let f;
   if (pt === 'seat') { pts.push(...a.g.pts); f = a.g.node; } else f = nearestNode(pt[0], pt[1]);
@@ -2061,12 +2143,17 @@ function stepAI(a, dt) {
   }
   const c = a.cur; if (!c) return;
   if (c.k === 'walk') {
-    let rem = (c.sp || 34) * dt;
+    // anda com aceleração e freio suaves; a passada acompanha a distância percorrida (nada de pernas "tremendo")
+    const top = Math.min(c.sp || 30, 56), acc = 90;
+    let left = 0, px0 = a.x, py0 = a.y; for (const [qx, qy] of c.pts) { left += Math.hypot(qx - px0, qy - py0); px0 = qx; py0 = qy; }
+    a.v = Math.min(top, (a.v || 0) + acc * dt, Math.sqrt(2 * acc * left) + 6);
+    let rem = Math.max(a.v, 4) * dt, moved = 0;
     while (rem > 0 && c.pts.length) {
       const [px, py] = c.pts[0], dx = px - a.x, dy = py - a.y, d = Math.hypot(dx, dy);
-      if (d <= rem) { a.x = px; a.y = py; rem -= d; c.pts.shift(); } else { a.x += dx / d * rem; a.y += dy / d * rem; if (Math.abs(dx) > .4) a.face = Math.sign(dx); rem = 0; }
+      if (d <= rem) { a.x = px; a.y = py; rem -= d; moved += d; c.pts.shift(); } else { a.x += dx / d * rem; a.y += dy / d * rem; moved += rem; if (Math.abs(dx) > 1.5 && Math.abs(dx) > Math.abs(dy) * .5) a.face = Math.sign(dx); rem = 0; }
     }
-    if (!c.pts.length) { a.cur = null; a.pose = 'stand'; }
+    a.gait = (a.gait || 0) + moved;
+    if (!c.pts.length) { a.cur = null; a.pose = 'stand'; a.v = 0; }
   } else if (c.m) {
     const m = c.m, o = m.a === a ? m.b : m.a;
     if (m.over) { a.cur = null; a.pose = 'stand'; a.say = ''; return; }
@@ -2078,7 +2165,7 @@ function aiGet(slug, pos, t) {
   OF.ai ||= new Map(); const key = pos.room + ':' + pos.x + ',' + pos.y; let a = OF.ai.get(slug);
   if (!a || a.key !== key) {
     if (a) cancelPlan(a);
-    a = { key, hx: pos.x, hy: pos.y, x: pos.x, y: pos.y, g: gate(pos.room, pos.x, pos.y), steps: [], cur: null, atSeat: true, pose: 'stand', hold: null, fx: null, face: 0, say: '', nextAt: t + rnd(2000, 8000), work: false };
+    a = { key, hx: pos.x, hy: pos.y, x: pos.x, y: pos.y, g: gate(pos.room, pos.x, pos.y), steps: [], cur: null, atSeat: true, pose: 'stand', hold: null, fx: null, face: 0, say: '', nextAt: t + rnd(6000, 24000), work: false, v: 0, gait: 0, sid: [...slug].reduce((h, ch) => (h * 31 + ch.charCodeAt(0)) | 0, 7) };
     OF.ai.set(slug, a);
   }
   return a;
@@ -2086,7 +2173,7 @@ function aiGet(slug, pos, t) {
 function person(g, x, y, col, hair, busy, t, idx, o) {
   o = o || {};
   const R = (a, b, w, h, c) => { g.fillStyle = c; g.fillRect(Math.round(a), Math.round(b), w, h); };
-  const walking = o.pose === 'walk', ph = walking ? Math.floor(t / 150 + idx) % 2 : 0, bob = walking && ph ? 1 : 0;
+  const walking = o.pose === 'walk', ph = walking ? (o.ph != null ? o.ph : Math.floor(t / 150 + idx) % 2) : 0, bob = walking && ph ? 1 : 0;
   const sit = o.pose === 'read' ? 4 : 0, yy = y - bob + sit, f = o.face || 0;
   g.fillStyle = 'rgba(0,0,0,.18)'; g.beginPath(); g.ellipse(x, y, 6, 2.5, 0, 0, 7); g.fill();
   if (!sit) { if (walking) { R(x - 3, y - (ph ? 4 : 3), 2, ph ? 4 : 3, '#2c3550'); R(x + 1, y - (ph ? 3 : 4), 2, ph ? 3 : 4, '#2c3550'); } else { R(x - 3, y - 4, 2, 4, '#2c3550'); R(x + 1, y - 4, 2, 4, '#2c3550'); } }
@@ -2126,18 +2213,18 @@ function officeFrame(t) {
   for (const e of ents) {
     const a = e.a;
     if (e.busy) {
-      if (!a.work) { a.work = true; cancelPlan(a); if (!a.atSeat) a.steps.push(...homeSteps(a, [a.x, a.y], 80)); }
-    } else if (a.work && a.atSeat && !a.cur && !a.steps.length) { a.work = false; a.nextAt = t + rnd(3000, 8000); }
+      if (!a.work) { a.work = true; cancelPlan(a); if (!a.atSeat) a.steps.push(...homeSteps(a, [a.x, a.y], 46)); }
+    } else if (a.work && a.atSeat && !a.cur && !a.steps.length) { a.work = false; a.nextAt = t + rnd(8000, 18000); }
     stepAI(a, dt);
   }
-  const away = ents.filter((e) => !e.a.atSeat && !e.a.work).length, maxAway = Math.max(1, Math.ceil(ents.length / 2));
+  const away = ents.filter((e) => !e.a.atSeat && !e.a.work).length, maxAway = Math.max(1, Math.floor(ents.length / 4));
   for (const e of ents) {
     const a = e.a; if (e.busy || a.work || !a.atSeat || a.cur || a.steps.length || t < a.nextAt) continue;
     if (away >= maxAway) { a.nextAt = t + 4000; continue; }
-    const r = Math.random(); a.nextAt = t + rnd(9000, 22000);
+    const r = Math.random(); a.nextAt = t + rnd(22000, 55000);
     const free = ents.filter((o) => o !== e && !o.busy && !o.a.work && o.a.atSeat && !o.a.cur && !o.a.steps.length);
-    if (r >= 0.28 && r < 0.5 && free.length) { const o = pick(free); planPong(a, o.a); o.a.nextAt = t + rnd(18000, 30000); }
-    else if (r < 0.34) { const cands = ents.filter((o) => o !== e && !o.busy && !o.a.work && o.a.atSeat && !o.a.cur && !o.a.steps.length); if (cands.length) { const o = pick(cands); planTalk(a, o.a); o.a.nextAt = t + rnd(12000, 24000); } else planCafe(a); }
+    if (r >= 0.28 && r < 0.5 && free.length) { const o = pick(free); planPong(a, o.a); o.a.nextAt = t + rnd(30000, 55000); }
+    else if (r < 0.34) { const cands = ents.filter((o) => o !== e && !o.busy && !o.a.work && o.a.atSeat && !o.a.cur && !o.a.steps.length); if (cands.length) { const o = pick(cands); planTalk(a, o.a); o.a.nextAt = t + rnd(25000, 50000); } else planCafe(a); }
     else if (r < 0.62) planCafe(a); else if (r < 0.82) planBook(a); else planTrash(a);
   }
   const ents2 = ents.slice().sort((p, q) => p.a.y - q.a.y);
@@ -2146,7 +2233,7 @@ function officeFrame(t) {
   for (const e of ents2) {
     const a = e.a, slg = e.b.slug, sx = a.x, sy = a.y, busy = e.busy; const st = styleOf(slg); const col = COL(st.color);
     const prog = a.dur ? Math.max(0, Math.min(1, 1 - a.t / a.dur)) : 0;
-    const hd = person(g, sx, sy, col, shade(col, -0.55), busy && a.atSeat, t, sx, { pose: a.pose, hold: a.hold, face: a.face, p: prog });
+    const hd = person(g, sx, sy, col, shade(col, -0.55), busy && a.atSeat, t, Math.abs(a.sid || 0) % 97, { pose: a.pose, hold: a.hold, face: a.face, p: prog, slug: slg, seat: a.atSeat, ph: Math.floor((a.gait || 0) / 8) % 2 });
     if (a.fx === 'steam') for (let i = 0; i < 3; i++) { const p = ((t / 900) + i / 3) % 1; g.fillStyle = `rgba(255,255,255,${0.8 * (1 - p)})`; g.fillRect(Math.round(397 + Math.sin(p * 6 + i) * 2), Math.round(240 - p * 12), 2, 2); }
     if (a.fx === 'throw') { const bx = sx + 5 + (400 - sx - 5) * prog, by = sy - 12 + (298 - sy + 12) * prog - Math.sin(Math.PI * prog) * 16; g.fillStyle = '#f4f4f4'; g.fillRect(Math.round(bx), Math.round(by), 3, 3); }
     if (a.cur?.m?.pong && a.cur.m.ready >= 2 && a.cur.m.a === a) {
@@ -2393,8 +2480,13 @@ loadState().then(() => {
   if (pick) openChat(pick);
 }).catch((e) => { document.body.textContent = 'Erro ao carregar: ' + e.message; });
 </script>
+<script src="/avatars.js"></script>
+<script src="/i18n.js" defer></script>
 <script src="/extra.js" defer></script>
 <script src="/extra2.js" defer></script>
 <script src="/extra3.js" defer></script>
+<script src="/tabs.js" defer></script>
+<script src="/calendar.js" defer></script>
+<script src="/restart-scene.js" defer></script>
 </body>
 </html>

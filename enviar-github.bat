@@ -6,7 +6,7 @@ set SRC=%~dp0
 set TMP_REPO=%TEMP%\data-house-push
 if exist "%TMP_REPO%" rmdir /s /q "%TMP_REPO%"
 git clone https://github.com/natandata/data-house "%TMP_REPO%" || goto erro
-robocopy "%SRC%." "%TMP_REPO%" /MIR /XD .git data node_modules workdir /XF .env *.log *.antigo.* >nul
+robocopy "%SRC%." "%TMP_REPO%" /MIR /XD .git data node_modules workdir /XF .env *.log *.antigo.* office3d.js three.min.js >nul
 if not exist "%TMP_REPO%\workdir" mkdir "%TMP_REPO%\workdir"
 git -C "%TMP_REPO%" checkout -- workdir 2>nul
 cd /d "%TMP_REPO%"
@@ -17,7 +17,7 @@ for /f "delims=" %%i in ('git config user.name') do set GITNAME=%%i
 if not defined GITNAME git config user.name "natandata"
 git add -A
 git diff --cached --quiet && goto semnovidade
-git commit -m "Atlas 0.2.0: busca, tarefas, clientes, custos, memoria, entregas, reiniciar na Central, backup e GitHub" || goto erro
+git commit -m "Atlas 0.3.0: audio, fala informal, calendario de entregas, idioma PT/EN e correcoes" || goto erro
 git push origin main || goto erro
 echo.
 echo Pronto: enviado ao GitHub.

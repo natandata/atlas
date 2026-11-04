@@ -5,6 +5,9 @@ import { existsSync, createReadStream, createWriteStream } from 'node:fs';
 import { join, extname, basename } from 'node:path';
 import { randomBytes } from 'node:crypto';
 import { pipeline } from 'node:stream/promises';
+import { TEMPLATES } from './templates.mjs';
+import { createCalendar } from './calendar.mjs';
+import { writeFile } from 'node:fs/promises';
 
 const fold = (t) => String(t || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
 const URL_RE = /https?:\/\/[^\s<>"'`\])]+/g;
@@ -20,6 +23,7 @@ export function createExtra(X) {
   const timers = [];
   const dsave = {}; const later = (k, fn, ms = 800) => { clearTimeout(dsave[k]); dsave[k] = setTimeout(() => fn().catch(() => {}), ms); };
   const saveProjects = () => writeJson(F('projects.json'), projects);
+  const CAL = createCalendar({ getProjects: () => projects, saveProjects, ask: (...a) => X.askPlain(...a), httpErr, clip, broadcast });
   const saveTasks = () => writeJson(F('tasks.json'), tasks.slice(-300));
   const saveCfg = () => writeJson(F('extra-settings.json'), cfg);
   const notify = (level, title, text = '', chatId = '') => broadcast({ type: 'notify', level, title, text: clip(text, 240), chatId });
@@ -34,13 +38,58 @@ export function createExtra(X) {
       driveUrl: (() => { const u = String(b.driveUrl ?? old?.driveUrl ?? '').trim(); if (!u) return ''; if (!/^https:\/\/drive\.google\.com\/[^\s]+$/i.test(u)) throw httpErr(400, 'cole o link de uma pasta do Google Drive (começa com https://drive.google.com/)'); return clip(u, 300); })(),
       rules: clip(String(b.rules ?? old?.rules ?? '').trim(), 3000),
       memory: clip(String(b.memory ?? old?.memory ?? '').trim(), 4000),
+      full: b.full !== undefined ? Boolean(b.full) : Boolean(old?.full),
+      icon: clip(String(b.icon ?? old?.icon ?? '').trim(), 4),
+      template: clip(String(b.template ?? old?.template ?? ''), 20),
+      desc: clip(String(b.desc ?? old?.desc ?? '').trim(), 200),
+      client: clip(String(b.client ?? old?.client ?? '').trim(), 60),
+      bots: (Array.isArray(b.bots) ? b.bots : (old?.bots || [])).map(String).filter((x, i, a) => bots.has(x) && a.indexOf(x) === i).slice(0, 20),
+      skills: (Array.isArray(b.skills) ? b.skills : (old?.skills || [])).map(String).filter((x, i, a) => /^[\w.-]{1,60}$/.test(x) && a.indexOf(x) === i).slice(0, 30),
+      archived: b.archived !== undefined ? Boolean(b.archived) : Boolean(old?.archived),
+      budget: b.budget !== undefined ? Math.min(1000000, Math.max(0, Math.floor(Number(b.budget) || 0))) : (old?.budget || 0),
     };
   };
-  const projView = (p) => ({ ...p, chats: [...chats.values()].filter((c) => c.project === p.id).map((c) => c.id) });
+  const monthKey = () => new Date().toISOString().slice(0, 7);
+  const usageOf = (p) => (p.usage && p.usage.month === monthKey() ? p.usage : { month: monthKey(), calls: 0, byBot: {} });
+  const projectGate = (chat) => {
+    const p = chat?.project && projects.find((x) => x.id === chat.project); if (!p) return;
+    if (p.archived) throw new Error(`o projeto “${p.name}” está arquivado`);
+    if (p.budget && usageOf(p).calls >= p.budget) throw new Error(`orçamento mensal de ${p.budget} chamadas do projeto “${p.name}” atingido`);
+  };
+  const projectCount = (chat, botSlug) => {
+    const p = chat?.project && projects.find((x) => x.id === chat.project); if (!p) return;
+    const u = usageOf(p); u.calls++; if (botSlug) u.byBot[botSlug] = (u.byBot[botSlug] || 0) + 1; p.usage = u; later('projects', saveProjects, 2000);
+    if (p.budget && u.calls === Math.ceil(p.budget * 0.8)) notify('warn', `Projeto “${p.name}” em 80% do orçamento`, `${u.calls} de ${p.budget} chamadas neste mês`);
+  };
+  const projectBots = (p) => { const set = new Set(p.bots || []); for (const c of chats.values()) if (c.project === p.id && c.type === 'group') for (const m of c.members || []) set.add(m); return [...set].filter((x) => bots.has(x)); };
+  const tplFor = (key) => TEMPLATES.find((t) => t.key === key);
+  const tplView = (t) => ({ key: t.key, name: t.name, icon: t.icon, color: t.color, desc: t.desc, rules: t.rules, bots: t.bots.map((b) => ({ name: b.name, tag: b.tag, description: b.description })) });
+  async function createFromTemplate(t, pr, idxs) {
+    const made = [];
+    for (const i of idxs) { const tb = t.bots[i]; if (!tb) continue; const nb = await X.makeBot({ name: tb.name, tag: tb.tag, description: tb.description, persona: tb.persona, model: 'auto' }); made.push(nb.slug); }
+    return made;
+  }
+  async function openGeneral(pr) {
+    const members = projectBots(pr).slice(0, 12); if (!members.length) return null;
+    return X.newGroup(`Geral · ${pr.name}`, members, pr.id);
+  }
+  const projView = (p) => ({ ...p, usage: usageOf(p), team: projectBots(p), chats: [...chats.values()].filter((c) => c.project === p.id).map((c) => c.id) });
+  function panel(p) {
+    const pc = [...chats.values()].filter((c) => c.project === p.id);
+    const chatsV = pc.map((c) => { const last = [...(c.messages || [])].reverse().find((m) => m.from !== 'system'); return { id: c.id, title: c.alias || c.title, type: c.type, members: c.members || [], ts: last?.ts || c.created || 0, count: (c.messages || []).length, preview: last ? clip(String(last.text || '').replace(/\s+/g, ' '), 90) : '' }; }).sort((a, b) => b.ts - a.ts);
+    const busy = new Map(); for (const t of tasks) if (t.project === p.id && (t.status === 'queued' || t.status === 'running')) busy.set(t.bot, t.status);
+    const team = projectBots(p).map((s) => ({ slug: s, name: bots.get(s).name, tag: bots.get(s).tag || '', status: busy.get(s) || 'idle' }));
+    const done = doneTasks(30).tasks.filter((t) => t.project === p.id).slice(0, 25);
+    const files = []; for (const c of pc) { const fl = c.fileFlags || {}; for (const f of filesOfChat(c)) files.push({ id: f.id, name: f.name, kind: f.kind, size: f.size, ts: f.ts, from: f.from, chat: c.id, approved: Boolean(fl[f.id]?.approved) }); }
+    files.sort((a, b) => b.ts - a.ts);
+    const u = usageOf(p);
+    return { calendar: CAL.summary(p), project: projView(p), chats: chatsV, team, done, files: files.slice(0, 40), filesTotal: files.length, usage: { month: u.month, calls: u.calls, budget: p.budget || 0, byBot: Object.entries(u.byBot || {}).map(([bot, n]) => ({ bot, name: X.nameOf(bot), n })).sort((a, b) => b.n - a.n) },
+      routines: (X.getRoutines() || []).filter((r) => r.project === p.id), waiting: waiting().filter((w) => w.project === p.id), activeTasks: tasks.filter((t) => t.project === p.id && (t.status === 'queued' || t.status === 'running')).map(taskView), };
+  }
   const projectOf = (chatId) => { const c = chats.get(chatId); return c?.project ? projects.find((p) => p.id === c.project) : null; };
   const projectNote = (chat) => {
     const p = chat?.project && projects.find((x) => x.id === chat.project); if (!p) return '';
-    return [`Cliente/projeto desta conversa: “${p.name}”.`, p.rules ? `Regras deste cliente (siga sempre):\n${p.rules}` : '', p.memory ? `Memória deste cliente:\n${p.memory}` : '', p.driveFolder ? `Pasta padrão do Drive deste cliente: ${p.driveFolder}.` : ''].filter(Boolean).join('\n');
+    return [`${p.full ? 'Projeto' : 'Cliente/projeto'} desta conversa: “${p.name}”${p.client ? ` (cliente: ${p.client})` : ''}.`, p.desc ? `Sobre o projeto: ${p.desc}` : '', p.rules ? `Regras deste ${p.full ? 'projeto' : 'cliente'} (siga sempre):\n${p.rules}` : '', p.memory ? `Memória deste ${p.full ? 'projeto' : 'cliente'}:\n${p.memory}` : '', p.skills?.length ? `Skills escolhidas para este projeto (use-as quando o pedido combinar): ${p.skills.join(', ')}.` : '', p.driveFolder ? `Pasta padrão do Drive deste cliente: ${p.driveFolder}.` : '', p.driveUrl ? `Link da pasta do Drive deste cliente (autorizada pelo Natan): ${p.driveUrl}` : ''].filter(Boolean).join('\n');
   };
   const projectDriveFolder = (chatId) => projectOf(chatId)?.driveFolder || '';
 
@@ -296,24 +345,149 @@ export function createExtra(X) {
     broadcast({ type: 'drive', job: jobId, done: paths.length, total: ids.length, finished: true, ok, error: err, paths });
   }
 
+
+  // ---------- tarefas concluídas (derivadas das conversas) ----------
+  // Uma "tarefa" é um pedido do usuário (ou direção de uma tarefa agendada) e tudo que os bots responderam até o próximo pedido.
+  const plain = (t) => String(t || '').replace(/```[\s\S]*?```/g, ' ').replace(/\[\[[^\]]*\]\]/g, ' ').replace(/[*_`#>]+/g, '').replace(/\[([^\]]+)\]\([^)]+\)/g, '$1').replace(/\s+/g, ' ').trim();
+  const firstSentence = (t, n) => { const s = plain(t); const m = s.match(/^.{20,}?[.!?](\s|$)/); return clip(m && m[0].length <= n ? m[0].trim() : s, n); };
+  function doneTasks(days) {
+    const since = Date.now() - days * 86400000, out = [];
+    for (const c of chats.values()) {
+      const msgs = (c.messages || []).filter((x) => x && x.ts);
+      let i = 0;
+      while (i < msgs.length) {
+        if (msgs[i].from !== 'user') { i++; continue; }
+        const head = msgs[i]; let j = i + 1; const turn = [];
+        while (j < msgs.length && msgs[j].from !== 'user') { turn.push(msgs[j]); j++; }
+        i = j;
+        const bm = turn.filter((x) => x.from !== 'system');
+        const final = [...bm].reverse().find((x) => x.kind !== 'delegation' && plain(x.text).length > 0) || [...bm].reverse().find((x) => x.files?.length);
+        if (!final) continue;
+        const end = bm[bm.length - 1].ts; if (end < since) continue;
+        const flow = []; const files = bm.reduce((n, x) => n + (x.files?.length || 0), 0);
+        for (const x of bm) {
+          const txt = x.kind === 'delegation' ? 'Planejou e distribuiu as partes' : firstSentence(x.text, 90) || (x.files?.length ? `Entregou ${x.files.length} arquivo(s)` : '');
+          const last = flow[flow.length - 1];
+          if (last && last.bot === x.from && x.kind !== 'delegation' && last.kind !== 'delegation') { last.text = txt || last.text; continue; }
+          flow.push({ bot: x.from, text: txt, kind: x.kind === 'delegation' ? 'delegation' : '' });
+        }
+        const bs = [...new Set(bm.map((x) => x.from))].filter((s) => bots.has(s));
+        const raw = plain(head.text); const evt = /^Tarefa:/.test(c.title || '') ? c.title.replace(/^Tarefa:\s*/, '') : '';
+        out.push({
+          id: c.id + ':' + head.id, chat: c.id, type: c.type, project: c.project || '', ts: end, started: head.ts,
+          title: clip(evt || raw || 'Tarefa', 90),
+          final: clip(plain(final.text) || (final.files?.length ? `Entregou ${final.files.length} arquivo(s)` : ''), 260),
+          finalBot: final.from, files, bots: bs, flow: flow.slice(0, 7), errors: turn.filter((x) => x.kind === 'error').length,
+        });
+      }
+    }
+    return { days, tasks: out.sort((a, b) => b.ts - a.ts).slice(0, 200) };
+  }
+
   // ---------- rotas JSON ----------
   async function route(m, p, url, body) {
     let mm;
+    { const cr = await CAL.route(m, p, body); if (cr !== undefined) return cr; }
     if (m === 'GET' && p === '/api/about') return { version, startedAt, changelog: changelog.slice(0, 8), github: { ...cfg.github, pushing }, backups: await listBackups(), autoBackup: cfg.autoBackup, drive: X.driveInfo() };
     if (m === 'GET' && p === '/api/update') return checkUpdate();
     if (m === 'GET' && p === '/api/search') return search(url.searchParams.get('q') || '', Object.fromEntries(['bot', 'type', 'from', 'to', 'project', 'chat'].map((k) => [k, url.searchParams.get(k) || ''])));
     if (m === 'GET' && p === '/api/projects') return { projects: projects.map(projView) };
+    if (m === 'POST' && p === '/api/projects/full') {
+      if (projects.length >= 60) throw httpErr(400, 'máximo de 60 projetos');
+      const t = tplFor(body.template); const base = { ...body };
+      if (t) { if (!String(base.icon || '').trim()) base.icon = t.icon; if (!/^#[0-9a-f]{6}$/i.test(base.color)) base.color = t.color; if (base.rules === undefined) base.rules = t.rules; if (base.desc === undefined) base.desc = t.desc; if (!String(base.name || '').trim()) base.name = t.name; }
+      const pr = { id: 'p-' + hex(4), ...cleanProject({ ...base, full: true, bots: [] }), created: Date.now() };
+      const idxs = (Array.isArray(body.createBots) ? body.createBots : []).map(Number).filter((n) => Number.isInteger(n));
+      const made = t ? await createFromTemplate(t, pr, idxs) : [];
+      pr.bots = [...new Set([...(Array.isArray(body.bots) ? body.bots : []).filter((x) => bots.has(x)), ...made])].slice(0, 20);
+      if (!pr.icon) pr.icon = '📁';
+      projects.push(pr); await saveProjects();
+      const sk = await X.syncSkills(projectBots(pr), pr.skills).catch(() => ({ added: 0, failed: [] }));
+      const g = await openGeneral(pr); broadcast({ type: 'state' });
+      return { ...projView(pr), createdBots: made, generalChat: g?.id || '', skillsFailed: sk.failed };
+    }
+    if (m === 'POST' && (mm = p.match(/^\/api\/projects\/(p-[a-f0-9]+)\/promote$/))) {
+      const pr = projects.find((x) => x.id === mm[1]); if (!pr) throw httpErr(404, 'projeto não encontrado');
+      const t = tplFor(body.template);
+      pr.full = true; if (!pr.icon) pr.icon = t?.icon || '📁'; if (t) { pr.template = t.key; if (!pr.rules) pr.rules = t.rules; if (!pr.desc) pr.desc = t.desc; }
+      pr.bots = [...new Set([...(pr.bots || []), ...projectBots(pr)])].slice(0, 20);
+      if (!pr.client) pr.client = pr.name;
+      await saveProjects(); broadcast({ type: 'state' }); return projView(pr);
+    }
+    if (m === 'GET' && (mm = p.match(/^\/api\/projects\/(p-[a-f0-9]+)\/panel$/))) { const pr = projects.find((x) => x.id === mm[1]); if (!pr) throw httpErr(404, 'projeto não encontrado'); return panel(pr); }
+    if (m === 'POST' && (mm = p.match(/^\/api\/projects\/(p-[a-f0-9]+)\/team$/))) {
+      const pr = projects.find((x) => x.id === mm[1]); if (!pr) throw httpErr(404, 'projeto não encontrado');
+      const act = String(body.action || ''), bot = String(body.bot || ''), to = String(body.to || '');
+      if (!['add', 'remove', 'swap'].includes(act)) throw httpErr(400, 'ação inválida');
+      if (!bots.has(bot)) throw httpErr(404, 'bot não encontrado');
+      if (act === 'swap' && (!bots.has(to) || to === bot)) throw httpErr(400, 'escolha outro bot para a troca');
+      let det = 0; const pcs = [...chats.values()].filter((c) => c.project === pr.id);
+      const drop = async (c, slug) => { c.members = (c.members || []).filter((x) => x !== slug); delete c.sessions?.[slug]; await persist(c); };
+      if (act === 'add') { if (projectBots(pr).includes(bot)) throw httpErr(400, 'este bot já está no projeto'); pr.bots = [...new Set([...(pr.bots || []), bot])]; }
+      else {
+        let detached = 0;
+        pr.bots = (pr.bots || []).filter((x) => x !== bot);
+        if (act === 'swap') pr.bots = [...new Set([...pr.bots, to])];
+        for (const c of pcs) {
+          if (c.type !== 'group' || !(c.members || []).includes(bot)) continue;
+          if (act === 'swap') { c.members = [...new Set(c.members.map((x) => (x === bot ? to : x)))]; delete c.sessions?.[bot]; await persist(c); X.post(c, 'system', `${X.nameOf(to)} entrou no lugar de ${X.nameOf(bot)}.`, 'sys'); }
+          else if (c.members.length > 1) { await drop(c, bot); X.post(c, 'system', `${X.nameOf(bot)} saiu do projeto.`, 'sys'); }
+          else { delete c.project; await persist(c); detached++; }
+        }
+        det = detached;
+      }
+      pr.bots = pr.bots.slice(0, 20); await saveProjects();
+      const sk = act === 'remove' ? { failed: [] } : await X.syncSkills([act === 'swap' ? to : bot], pr.skills).catch(() => ({ failed: [] }));
+      broadcast({ type: 'state' });
+      const detached = det;
+      return { ...projView(pr), detachedChats: detached, skillsFailed: sk.failed };
+    }
+    if (m === 'POST' && (mm = p.match(/^\/api\/projects\/(p-[a-f0-9]+)\/chat$/))) {
+      const pr = projects.find((x) => x.id === mm[1]); if (!pr) throw httpErr(404, 'projeto não encontrado');
+      if (body.bot) {
+        const slug = String(body.bot); if (!bots.has(slug)) throw httpErr(400, 'bot inválido');
+        let sc = [...chats.values()].find((x) => x.project === pr.id && x.solo && x.members[0] === slug);
+        if (!sc) { sc = await X.newGroup(bots.get(slug).name, [slug], pr.id); sc.solo = true; await persist(sc); broadcast({ type: 'state' }); }
+        return { id: sc.id };
+      }
+      const members = (Array.isArray(body.members) && body.members.length ? body.members : projectBots(pr)).filter((x) => bots.has(x)).slice(0, 12);
+      if (!members.length) throw httpErr(400, 'este projeto ainda não tem bots: adicione ao menos um');
+      const g = await X.newGroup(String(body.title || '').trim() || `Conversa · ${pr.name}`, members, pr.id);
+      return { id: g.id };
+    }
+    if ((m === 'POST' || m === 'DELETE') && (mm = p.match(/^\/api\/projects\/(p-[a-f0-9]+)\/image$/))) {
+      const pr = projects.find((x) => x.id === mm[1]); if (!pr) throw httpErr(404, 'projeto não encontrado');
+      await mkdir(F('project-images'), { recursive: true });
+      for (const ext of ['png', 'jpg']) await rm(F(`project-images/${pr.id}.${ext}`), { force: true });
+      if (m === 'DELETE') { delete pr.image; delete pr.imgv; }
+      else {
+        const mt = /^data:image\/(png|jpeg);base64,([A-Za-z0-9+/=]+)$/.exec(String(body.data || '')); if (!mt) throw httpErr(400, 'imagem inválida (use PNG ou JPG)');
+        const buf = Buffer.from(mt[2], 'base64'); if (buf.length > 150000) throw httpErr(413, 'imagem grande demais');
+        const ok = mt[1] === 'png' ? buf.subarray(0, 4).toString('hex') === '89504e47' : buf.subarray(0, 2).toString('hex') === 'ffd8'; if (!ok) throw httpErr(400, 'arquivo não é uma imagem válida');
+        const ext = mt[1] === 'png' ? 'png' : 'jpg'; await writeFile(F(`project-images/${pr.id}.${ext}`), buf); pr.image = ext; pr.imgv = Date.now();
+      }
+      await saveProjects(); broadcast({ type: 'state' }); return projView(pr);
+    }
+    if (m === 'GET' && p === '/api/project-templates') return { templates: TEMPLATES.map(tplView) };
     if (m === 'POST' && p === '/api/projects') { if (projects.length >= 60) throw httpErr(400, 'máximo de 60 clientes'); const pr = { id: 'p-' + hex(4), ...cleanProject(body), created: Date.now() }; projects.push(pr); await saveProjects(); broadcast({ type: 'state' }); return projView(pr); }
     if ((m === 'PUT' || m === 'DELETE') && (mm = p.match(/^\/api\/projects\/(p-[a-f0-9]+)$/))) {
       const pr = projects.find((x) => x.id === mm[1]); if (!pr) throw httpErr(404, 'cliente não encontrado');
-      if (m === 'DELETE') { projects = projects.filter((x) => x !== pr); for (const c of chats.values()) if (c.project === pr.id) { delete c.project; persist(c); } await saveProjects(); broadcast({ type: 'state' }); return { ok: true }; }
-      Object.assign(pr, cleanProject(body, pr)); await saveProjects(); broadcast({ type: 'state' }); return projView(pr);
+      if (m === 'DELETE') { for (const ext of ['png', 'jpg']) await rm(F(`project-images/${pr.id}.${ext}`), { force: true }); projects = projects.filter((x) => x !== pr); for (const r of X.getRoutinesRaw?.() || []) if (r.project === pr.id) await X.setRoutineProject(r, ''); for (const c of chats.values()) if (c.project === pr.id) { delete c.project; persist(c); } await saveProjects(); broadcast({ type: 'state' }); return { ok: true }; }
+      if (Array.isArray(body.bots)) {
+        const keep = new Set(body.bots.map(String)); const gone = projectBots(pr).filter((x) => !keep.has(x));
+        for (const slug of gone) for (const c of [...chats.values()].filter((x) => x.project === pr.id && x.type === 'group' && (x.members || []).includes(slug))) {
+          if (c.members.length > 1) { c.members = c.members.filter((x) => x !== slug); delete c.sessions?.[slug]; await persist(c); X.post(c, 'system', `${X.nameOf(slug)} saiu do projeto.`, 'sys'); }
+          else { delete c.project; await persist(c); }
+        }
+      }
+      Object.assign(pr, cleanProject(body, pr)); await saveProjects(); const sk = await X.syncSkills(projectBots(pr), pr.skills).catch(() => ({ failed: [] })); broadcast({ type: 'state' }); return { ...projView(pr), skillsFailed: sk.failed };
     }
     if (m === 'PUT' && (mm = p.match(/^\/api\/chats\/([a-z0-9-]+)\/project$/))) {
       const c = chats.get(mm[1]); if (!c) throw httpErr(404, 'conversa não encontrada'); const id = String(body.project || '');
       if (id && !projects.some((x) => x.id === id)) throw httpErr(404, 'cliente não encontrado');
       if (id) c.project = id; else delete c.project; await persist(c); broadcast({ type: 'state' }); return { project: c.project || '' };
     }
+    if (m === 'GET' && p === '/api/done') return doneTasks(Math.min(30, Math.max(1, Number(url.searchParams.get('days')) || 7)));
     if (m === 'GET' && p === '/api/tasks') {
       const pr = url.searchParams.get('project'), bot = url.searchParams.get('bot'), st = url.searchParams.get('status'); const lim = Math.min(200, Number(url.searchParams.get('limit')) || 80);
       let list = tasks.filter((t) => (!pr || t.project === pr) && (!bot || t.bot === bot) && (!st || t.status === st));
@@ -370,12 +544,18 @@ export function createExtra(X) {
 
   // ---------- rotas de download (texto/arquivo) ----------
   async function raw(req, res, url) {
+    if (req.method === 'POST') return CAL.raw(req, res, url, (rs, code, obj) => { rs.writeHead(code, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' }); rs.end(JSON.stringify(obj)); });
     if (req.method !== 'GET') return false; let mm;
     const out = (name, type, text) => { res.writeHead(200, { 'content-type': type + '; charset=utf-8', 'content-disposition': `attachment; filename*=UTF-8''${encodeURIComponent(name)}`, 'cache-control': 'no-store', 'x-content-type-options': 'nosniff' }); res.end(text); return true; };
     if ((mm = url.pathname.match(/^\/api\/chats\/([a-z0-9-]+)\/export$/))) {
       const c = chats.get(mm[1]); if (!c) throw httpErr(404, 'conversa não encontrada'); const fmt = url.searchParams.get('fmt') === 'json' ? 'json' : 'md'; const safe = fold(c.title).replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'conversa';
       if (fmt === 'json') { const { _q, _run, sessions, ...v } = c; return out(`${safe}.json`, 'application/json', JSON.stringify(v, null, 1)); }
       return out(`${safe}.md`, 'text/markdown', chatMarkdown(c));
+    }
+    if ((mm = url.pathname.match(/^\/api\/projects\/(p-[a-f0-9]+)\/image$/))) {
+      const pr = projects.find((x) => x.id === mm[1]); if (!pr?.image) throw httpErr(404, 'sem imagem');
+      const buf = await readFile(F(`project-images/${pr.id}.${pr.image}`)).catch(() => null); if (!buf) throw httpErr(404, 'sem imagem');
+      res.writeHead(200, { 'content-type': pr.image === 'png' ? 'image/png' : 'image/jpeg', 'cache-control': 'private, max-age=31536000', 'x-content-type-options': 'nosniff' }); res.end(buf); return true;
     }
     if (url.pathname === '/api/export/deliveries') {
       const rows = deliveriesRows({ chat: url.searchParams.get('chat') || '', project: url.searchParams.get('project') || '' });
@@ -404,6 +584,14 @@ export function createExtra(X) {
   }
 
   return {
+    hasProject: (id) => projects.some((x) => x.id === id), projectGate, projectCount,
+    async routineChat(r) {
+      const pr = projects.find((x) => x.id === r.project); if (!pr) return null;
+      let c = [...chats.values()].find((x) => x.project === pr.id && x.routineChat);
+      if (!c) { c = await X.newGroup(`Rotinas · ${pr.name}`, [r.bot], pr.id); c.routineChat = true; await persist(c); }
+      if (!c.members.includes(r.bot)) { c.members.push(r.bot); await persist(c); }
+      return c;
+    },
     init, route, raw, notify, projectNote, projectDriveFolder, taskQueued, taskRunning, taskEnd, noteUsage, checkPlan, nextRoutine, runResult,
     replyInfo(c, mid) { const m = c.messages.find((x) => x.id === mid); return m ? { id: m.id, from: m.from, name: m.from === 'user' ? 'Você' : X.nameOf(m.from), text: clip(String(m.text || (m.files?.length ? m.files[0].name : '')).replace(/\[\[APROVAR\]\]/g, '').replace(/\s+/g, ' ').trim(), 160) } : null; },
   };

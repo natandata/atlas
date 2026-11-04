@@ -60,7 +60,7 @@ XU.chip = () => {
   if (!c) { c = h('button', { id: 'xProjChip', class: 'xproj', type: 'button', title: 'Cliente desta conversa (clique para trocar)' }); sub.after(c); }
   const pr = XU.projects.find((p) => p.id === S.chat.project);
   c.textContent = pr ? '● ' + pr.name : '+ cliente'; c.style.setProperty('--pc', pr?.color || 'var(--muted)'); c.classList.toggle('none', !pr);
-  c.onclick = (e) => { showMenu(c, [...XU.projects.map((p) => ({ label: (S.chat.project === p.id ? '✓ ' : '') + p.name, run: () => XU.assign(p.id) })), { sep: true }, ...(S.chat.project ? [{ label: 'Tirar cliente', run: () => XU.assign('') }] : []), { label: 'Gerenciar clientes…', run: () => XU.clientsDlg() }], 'below'); };
+  c.onclick = (e) => { showMenu(c, [...XU.projects.filter((p) => !p.archived || S.chat.project === p.id).map((p) => ({ label: (S.chat.project === p.id ? '✓ ' : '') + p.name, run: () => XU.assign(p.id) })), { sep: true }, ...(S.chat.project ? [{ label: 'Tirar cliente', run: () => XU.assign('') }] : []), { label: 'Gerenciar clientes…', run: () => XU.clientsDlg() }], 'below'); };
 };
 XU.assign = async (id) => { try { await api('PUT', `/api/chats/${S.chat.id}/project`, { project: id }); S.chat.project = id; XU.chip(); } catch (e) { XU.err(e); } };
 { const r = window.renderHead; if (r) window.renderHead = function () { r.apply(this, arguments); XU.chip(); }; }

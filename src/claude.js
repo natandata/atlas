@@ -27,13 +27,14 @@ const SAFE_MODEL = /^[A-Za-z0-9_.\-]+$/;
 // (ferramenta usada, etc.) para mostrar a atividade ao vivo. Sem onEvent, usa o modo json de sempre.
 // Navegador (Playwright MCP): perfil persistente por bot, para as contas ficarem logadas entre tarefas.
 export const blotatoReady = () => Boolean(process.env.BLOTATO_API_KEY);
-function mcpConfigFor({ composio, browserDir, blotato }) {
+function mcpConfigFor({ composio, browserDir, browserCdp, blotato }) {
   const servers = {};
   if (blotato && process.env.BLOTATO_API_KEY) servers.blotato = { type: 'http', url: 'https://mcp.blotato.com/mcp', headers: { 'blotato-api-key': process.env.BLOTATO_API_KEY.trim() } };
   const base = composio === false ? null : composioConfig();
   if (base) { try { Object.assign(servers, JSON.parse(readFileSync(base, 'utf8')).mcpServers); } catch { /* sem composio */ } }
   if (browserDir) {
-    const args = ['@playwright/mcp@0.0.83', '--user-data-dir', browserDir];
+    // browserCdp: o Atlas já abriu o navegador do bot (e mostra na conversa); o bot se conecta nele em vez de abrir outro
+    const args = browserCdp ? ['@playwright/mcp@0.0.83', '--cdp-endpoint', browserCdp] : ['@playwright/mcp@0.0.83', '--user-data-dir', browserDir];
     if (process.env.BROWSER_HEADLESS === '1') args.push('--headless');
     servers.playwright = process.platform === 'win32' ? { command: 'cmd', args: ['/c', 'npx', '-y', ...args] } : { command: 'npx', args: ['-y', ...args] };
   }
@@ -52,7 +53,7 @@ export function killTree(child) {
   } catch { /* já encerrou */ }
 }
 
-function runOnce({ prompt, sessionId, cwd, model, allowedTools, timeoutMs, command, onEvent, advanced, commands, composio, blotato, chrome, browserDir, register }) {
+function runOnce({ prompt, sessionId, cwd, model, allowedTools, timeoutMs, command, onEvent, advanced, commands, composio, blotato, chrome, browserDir, browserCdp, register }) {
   return new Promise((resolve, reject) => {
     if (model && !SAFE_MODEL.test(model)) return reject(new Error('CLAUDE_MODEL inválido'));
     if (allowedTools && !SAFE_LIST.test(allowedTools)) return reject(new Error('ALLOWED_TOOLS inválido'));
@@ -64,10 +65,10 @@ function runOnce({ prompt, sessionId, cwd, model, allowedTools, timeoutMs, comma
     const args = ['-p', '--output-format', stream ? 'stream-json' : 'json', '--permission-mode', 'dontAsk', '--strict-mcp-config'];
     if (stream) args.push('--verbose');
     // Bots comuns: sem Bash/Write/Edit. Bots "avançados" (ex.: editor de vídeo) ganham só o que o settings.json do bot libera.
-    args.push('--disallowedTools', advanced ? 'NotebookEdit' : 'Bash,Write,Edit,NotebookEdit');
+    args.push('--disallowedTools', (advanced ? 'NotebookEdit' : 'Bash,Write,Edit,NotebookEdit') + (browserCdp ? ',mcp__playwright__browser_close' : ''));
     if (model) args.push('--model', model);
     if (chrome) args.push('--chrome'); // Claude in Chrome: usa o Chrome real do Natan, com as contas já logadas
-    const mcp = mcpConfigFor({ composio, browserDir, blotato });
+    const mcp = mcpConfigFor({ composio, browserDir, browserCdp, blotato });
     if (mcp) args.push('--mcp-config', mcp);
     const allow = [allowedTools, mcp && (composio !== false && composioConfig()) ? 'mcp__composio' : '', mcp && blotato && process.env.BLOTATO_API_KEY ? 'mcp__blotato' : '', chrome ? 'mcp__claude-in-chrome' : ''].filter(Boolean).join(',');
     // bots avançados: as regras também vão direto na linha de comando (não dependem só do .claude/settings.json)

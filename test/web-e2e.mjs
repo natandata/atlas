@@ -134,7 +134,7 @@ try {
   assert.equal(act4[1].text, 'Pesquisando na web'); assert.equal(act4[1].detail, 'teste pesquisador'); assert.equal(act4[1].bot, 'pesquisador');
 
   // 5) coordenador delega: plano, 2 respostas, final
-  await api('POST', '/api/chats/d-coordenador/messages', { text: 'faz um post' });
+  await api('POST', '/api/chats/d-coordenador/messages', { text: 'chame o time: faz um post' });
   await wait(async () => (await msgs('d-coordenador')).length >= 5);
   const m5 = await msgs('d-coordenador');
   assert.equal(m5[1].kind, 'delegation'); assert.equal(m5[1].from, 'coordenador');
@@ -143,6 +143,12 @@ try {
   const act5 = (await api('GET', '/api/chats/d-coordenador')).json.activity;
   assert.equal(act5.filter((a) => a.kind === 'delegate').length, 2, 'eventos de delegação');
   assert.ok(act5.some((a) => a.bot === 'escritor' && a.kind === 'tool'), 'atividade dos bots delegados aparece na conversa do coordenador');
+
+  // 5b) chat individual com o coordenador: sem pedido, ele responde sozinho (não chama outros bots)
+  await api('POST', '/api/chats/d-coordenador/messages', { text: 'bom dia' });
+  await wait(async () => (await msgs('d-coordenador')).length >= 7); await new Promise((r) => setTimeout(r, 300));
+  const m5b = (await msgs('d-coordenador')).slice(5);
+  assert.ok(m5b.every((m) => m.kind !== 'delegation' && !['pesquisador', 'escritor'].includes(m.from)), 'sem delegação sem pedido');
 
   // 6) grupo: @menção chama só o bot citado
   const g = (await api('POST', '/api/groups', { title: 'Conteúdo', members: ['coordenador', 'pesquisador'] })).json;
@@ -158,7 +164,7 @@ try {
 
   // 7) limite diário (14): até aqui foram 1 (rotina) + 1+4+1+3 = 10 chamadas
   const used = (await api('GET', '/api/state')).json.usage.calls;
-  assert.equal(used, 14, 'contagem de chamadas');
+  assert.equal(used, 15, 'contagem de chamadas');
   // 8) erro do Claude vira mensagem de erro, não derruba
   await api('POST', '/api/chats/d-tradutor-agil/messages', { text: 'FALHAR' });
   await wait(async () => (await msgs('d-tradutor-agil')).some((m) => m.kind === 'error'));
@@ -427,6 +433,14 @@ try {
     const sp = await api('POST', `/api/chats/${cid}/stop`); assert.ok(sp.json.stopped >= 1, 'parou ao menos um processo');
     await wait(async () => (await msgs(cid)).some((m) => /foi parado/.test(m.text)));
     await wait(async () => !((await api('GET', '/api/state')).json.working || []).includes(key));
+  }
+  // idioma da interface (PT/EN): salva no servidor sem mexer na fala informal; i18n.js é público
+  {
+    assert.equal((await fetch(base + '/i18n.js')).status, 200, 'i18n.js público');
+    let r = await api('PUT', '/api/style', { informal: true }); assert.equal(r.json.informal, true); assert.equal(r.json.lang, 'pt');
+    r = await api('PUT', '/api/style', { lang: 'en' }); assert.equal(r.json.lang, 'en'); assert.equal(r.json.informal, true, 'trocar idioma não desliga o informal');
+    assert.equal((await api('GET', '/api/style')).json.lang, 'en');
+    r = await api('PUT', '/api/style', { lang: 'xx', informal: false }); assert.equal(r.json.lang, 'pt'); assert.equal(r.json.informal, false);
   }
   console.log('OK: central passou em todos os testes');
 } catch (e) {

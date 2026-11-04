@@ -133,7 +133,7 @@ const _showMenu = window.showMenu;
 window.showMenu = function (anchor, items, place) {
   if (_inMain) {
     const fz = XU.fz(); const hc = document.documentElement.dataset.contrast === 'high';
-    const add = [{ label: 'Buscar… (Ctrl+K)', run: () => XU.palette() }, { label: 'Tarefas e aprovações', run: () => XU.tasksDlg() }, { label: 'Clientes (projetos)', run: () => XU.clientsDlg() }, { label: 'Custos e limites', run: () => XU.costsDlg() },
+    const add = [{ label: 'Buscar… (Ctrl+K)', run: () => XU.palette() }, { label: 'Tarefas e aprovações', run: () => XU.tasksDlg() }, { label: 'Clientes (projetos)', run: () => XU.clientsDlg() }, { label: 'Custos e limites', run: () => XU.costsDlg() }, { label: 'Modelo gratuito (Ollama)', run: () => window.openOllama && window.openOllama() }, { label: 'Transcrição de áudio', run: () => window.openTranscribe && window.openTranscribe() }, { label: `Fala informal: ${XU.informal ? 'ligada' : 'desligada'} (trocar)`, run: () => XU.setInformal(!XU.informal) },
       { label: 'Memória dos bots e clientes', run: () => XU.memoryDlg() }, { label: 'Sistema: backup, GitHub e novidades', run: () => XU.systemDlg() }, { sep: true },
       { label: `Tamanho do texto: ${['normal', 'grande', 'maior'][fz]} (trocar)`, run: () => XU.setFz((fz + 1) % 3) }, { label: `Alto contraste: ${hc ? 'ligado' : 'desligado'} (trocar)`, run: () => XU.setContrast(!hc) }, { label: 'Atalhos de teclado (?)', run: () => XU.shortcuts() }, { sep: true }];
     const i = items.findIndex((x) => x.label === 'Reiniciar a central');
@@ -144,6 +144,9 @@ window.showMenu = function (anchor, items, place) {
 
 // ---------- acessibilidade ----------
 const FZ = [1, 1.15, 1.3];
+XU.informal = false;
+XU.setInformal = async (on) => { try { const r = await api('PUT', '/api/style', { informal: on }); XU.informal = !!r.informal; XU.toast(XU.informal ? 'Fala informal ligada' : 'Fala informal desligada', XU.informal ? 'Os bots passam a conversar de forma mais solta e direta.' : 'Os bots voltam ao tom normal.'); } catch (e) { XU.toast('Não consegui trocar', e.message || ''); } };
+setTimeout(() => { try { api('GET', '/api/style').then((r) => { XU.informal = !!r.informal; }).catch(() => {}); } catch {} }, 1500);
 XU.fz = () => { const v = Number(store.get('xfz')); return v >= 0 && v <= 2 ? v : 0; };
 XU.setFz = (i) => { store.set('xfz', String(i)); document.documentElement.style.setProperty('--xz', FZ[i]); XU.toast('Tamanho do texto', ['Normal', 'Grande', 'Maior'][i], { ms: 1800 }); };
 XU.setContrast = (on) => { store.set('xhc', on ? '1' : ''); if (on) document.documentElement.dataset.contrast = 'high'; else delete document.documentElement.dataset.contrast; XU.toast('Alto contraste', on ? 'Ligado' : 'Desligado', { ms: 1800 }); };
@@ -182,7 +185,7 @@ window.renderTyping = function () {
 
 // ---------- busca global (Ctrl+K) ----------
 XU.commands = () => [
-  ['Reiniciar a Central', '↻', () => XU.restart(), 'reiniciar restart'], ['Tarefas e aprovações', '☑', () => XU.tasksDlg(), 'tarefas fila aprovar'], ['Clientes (projetos)', '📁', () => XU.clientsDlg(), 'clientes projetos'],
+  ['Reiniciar a Central', '↻', () => XU.restart(), 'reiniciar restart'], ['Fala informal (ligar/desligar)', '💬', () => XU.setInformal(!XU.informal), 'informal fala tom estilo conversa'], ['Transcrição de áudio (chave do Groq)', '🎙', () => window.openTranscribe && window.openTranscribe(), 'transcricao audio voz groq chave whisper'], ['Tarefas e aprovações', '☑', () => XU.tasksDlg(), 'tarefas fila aprovar'], ['Clientes (projetos)', '📁', () => XU.clientsDlg(), 'clientes projetos'],
   ['Custos e limites', '📊', () => XU.costsDlg(), 'custos uso limites'], ['Memória dos bots e clientes', '🧠', () => XU.memoryDlg(), 'memoria lembrar'], ['Entregas', '📦', () => openDeliveries(), 'entregas arquivos'],
   ['Escritório virtual', '🏢', () => openOffice(), 'escritorio'], ['Calendário', '📅', () => openCal(), 'calendario agenda'], ['Sistema: backup, GitHub e novidades', '⚙', () => XU.systemDlg(), 'sistema backup github novidades atualizar'],
   ['Alternar tamanho do texto', 'A', () => XU.setFz((XU.fz() + 1) % 3), 'fonte texto tamanho'], ['Alternar alto contraste', '◐', () => XU.setContrast(document.documentElement.dataset.contrast !== 'high'), 'contraste acessibilidade'],
